@@ -2,6 +2,8 @@
 
 <p align="center"><b>Skate 3 in Garry's Mod.</b></p>
 
+<p align="center"><a href="https://discord.gg/cMYSu9ywf">Join the community on Discord</a></p>
+
 SkateGM runs Skate 3's board physics, tricks and scoring inside Garry's Mod,
 on any map and with friends. It also comes with minigames, a park editor and
 a gamemode built for skating.
@@ -19,6 +21,11 @@ own copy.
   that holds `default.xex`. If you have an `.iso`, extract it first, for
   example with extract-xiso.
 - Windows.
+
+> [!IMPORTANT]
+> **Controller not working?** Turn off Steam Input for Garry's Mod: in
+> Steam, right-click Garry's Mod > Properties > Controller, and choose
+> **Disable Steam Input**. This helps with most controller problems.
 
 ## Install
 
