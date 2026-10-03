@@ -21,7 +21,7 @@ own copy.
 
 ## Install
 
-1. Download **`SkateGM-Setup.exe`** from the
+1. Download **`SkateGM-Setup-<version>.exe`** from the
    [latest release](../../releases/latest).
 2. Close Garry's Mod and run the installer.
 3. Choose your Skate 3 **`default.xex`** and press **Install**.

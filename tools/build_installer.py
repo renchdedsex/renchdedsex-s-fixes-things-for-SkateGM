@@ -1,4 +1,4 @@
-"""Builds release/SkateGM-Setup.exe: the installer window, the converter, the
+"""Builds release/SkateGM-Setup-<version>.exe (version from VERSION): the installer window, the converter, the
 add-on and the engine module in one file. Nothing from the game is bundled.
 
     python tools/build_installer.py
@@ -16,6 +16,7 @@ PY = VENV / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python')
 PACKAGES = ['numpy==2.5.3', 'pillow==12.3.0', 'pyinstaller']
 DLL = ROOT / 'gm_skategm' / 'prebuilt' / 'gmcl_skategm_win64.dll'
 SEP = ';' if sys.platform == 'win32' else ':'
+NAME = 'SkateGM-Setup-' + (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
 
 
 def run(*args):
@@ -43,7 +44,7 @@ def main():
                       ('exporter/tools/vendor/skate3_ui/LICENSE', 'skate3_ui.txt')]:
         shutil.copy2(ROOT / src, licenses / name)
     out = ROOT / 'release'
-    run(PY, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile', '--windowed', '--name', 'SkateGM-Setup',
+    run(PY, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile', '--windowed', '--name', NAME,
         '--paths', ROOT / 'exporter',
         '--hidden-import', 'numpy', '--hidden-import', 'PIL.Image', '--hidden-import', 'convert',
         '--add-binary', f'{refpack}{SEP}tools/asset_pipeline',
@@ -55,7 +56,7 @@ def main():
         '--copy-metadata', 'numpy', '--copy-metadata', 'Pillow',
         '--distpath', out, '--workpath', work / 'build', '--specpath', work,
         ROOT / 'installer' / 'setup_skategm.py')
-    print('built', out / 'SkateGM-Setup.exe')
+    print('built', out / (NAME + '.exe'))
 
 
 if __name__ == '__main__':
