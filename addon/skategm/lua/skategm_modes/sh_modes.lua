@@ -517,6 +517,7 @@ else
 	end
 
 	function Mode:Say(text, bad)
+		text = M.ButtonWords and M.ButtonWords(text) or text
 		local a = M.API()
 		if a then a.Say(self.title .. ": " .. text, bad) else chat.AddText(self.color or Color(120, 220, 255), "[" .. self.title .. "] ", color_white, text) end
 	end
@@ -605,8 +606,14 @@ else
 	end
 
 	local shadow = Color(0, 0, 0, 180)
+	function M.ButtonWords(t)
+		local P = SKATEGM_UI and SKATEGM_UI.pad
+		return P and P.T and P.T(t) or t
+	end
+
 	function M.Text(t, font, x, y, col, ax, offset)
 		offset = offset or 2
+		t = M.ButtonWords(t)
 		draw.SimpleText(t, font, x + offset, y + offset, shadow, ax or TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
 		draw.SimpleText(t, font, x, y, col or color_white, ax or TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
 	end

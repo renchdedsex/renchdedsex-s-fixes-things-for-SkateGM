@@ -392,9 +392,9 @@ end)
 concommand.Add("skategm_report", function()
 	if not skategm then Say("module not loaded") return end
 	local p = skategm.Poll()
-	print(string.format("[SkateGM] engine=%s status=%s phase=%s state=%s load=%dms ticks/s=%d avgTick=%.3fms maxStep=%.2fms memory=%dMB pad=%s",
+	print(string.format("[SkateGM] engine=%s status=%s phase=%s state=%s load=%dms ticks/s=%d avgTick=%.3fms maxStep=%.2fms memory=%dMB pad=%s controller=%s",
 		p.engine or "?", p.status or "?", S.phase, p.state or "-", p.loadMs or 0, p.ticksPerSec or 0,
-		p.avgTickMs or 0, p.maxStepMs or 0, math.floor(p.memoryMB or -1), tostring(p.pad)))
+		p.avgTickMs or 0, p.maxStepMs or 0, math.floor(p.memoryMB or -1), tostring(p.pad), tostring(p.padName)))
 	if p.world then print("[SkateGM] " .. p.world) end
 	if p.collision then print("[SkateGM] " .. p.collision) end
 	local P = S.P
@@ -1426,6 +1426,7 @@ hook.Add("Think", "skategm", function()
 	-- from it while airborne)
 	skategm.Step(FrameTime() * (S.timeScale or 1), true, 0, 0, 0, 0, 0, 0, 0)
 	S.noPad = p.pad == false
+	S.padName = p.padName
 	S.engineState = p.state
 
 	S.pose = p
@@ -1966,6 +1967,7 @@ S.API = {
 		S.inputBlocked = on and true or nil
 		S.ApplyInputBlock()
 	end,
+	PadType = function() return S.pose and S.pose.padType or nil end,
 	Pad = function()
 		if not S.inputBlocked and S.InputBlockWanted() then return nil end
 		local p = S.phase == "on" and S.pose

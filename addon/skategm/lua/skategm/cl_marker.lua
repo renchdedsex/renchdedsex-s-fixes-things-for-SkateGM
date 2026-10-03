@@ -32,7 +32,10 @@ end
 function S.MarkerPaint(w, h)
 	if S.noPad then
 		Shadowed("Connect a controller to skate", "skategm_big", w / 2, h * 0.45, Color(255, 220, 120), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-		Shadowed("(an Xbox-style pad - Skater mode is controller only)", "skategm_cmid", w / 2, h * 0.45 + h * 0.035, Color(230, 230, 230), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		local found = S.padName and S.padName:match("^none usable %((.+)%)$")
+		local why = found and (found .. ": add its mapping to garrysmod/data/skategm/gamecontrollerdb.txt")
+			or "Xbox, PlayStation, Switch Pro and most other pads work - Skater mode is controller only"
+		Shadowed(why, "skategm_cmid", w / 2, h * 0.45 + h * 0.035, Color(230, 230, 230), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	end
 	-- (input taken by a menu or the park editor: the engine never saw LB let go)
 	if not MK.active or S.inputBlocked then return end

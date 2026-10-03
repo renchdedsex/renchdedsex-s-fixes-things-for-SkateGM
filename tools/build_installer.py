@@ -15,6 +15,9 @@ VENV = BUILD / 'venv'
 PY = VENV / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python')
 PACKAGES = ['numpy==2.5.3', 'pillow==12.3.0', 'pyinstaller']
 DLL = ROOT / 'gm_skategm' / 'prebuilt' / 'gmcl_skategm_win64.dll'
+PREBUILT = ROOT / 'gm_skategm' / 'prebuilt'
+EXTRAS = ['skategm_sdl2.dll', 'skategm_gamecontrollerdb.txt']
+EXTRA_LICENSES = ['SDL2-LICENSE.txt', 'SDL2-README.txt', 'SDL_GameControllerDB-LICENSE.txt']
 SEP = ';' if sys.platform == 'win32' else ':'
 NAME = 'SkateGM-Setup-' + (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
 
@@ -27,6 +30,8 @@ def run(*args):
 def main():
     if not DLL.is_file():
         raise SystemExit(f'build the module first: {DLL} is missing')
+    if not all((PREBUILT / n).is_file() for n in EXTRAS + EXTRA_LICENSES):
+        raise SystemExit('SDL2 is missing: python tools/fetch_sdl.py')
     if not PY.is_file():
         venv.create(VENV, with_pip=True)
     run(PY, '-m', 'pip', 'install', '--quiet', '--disable-pip-version-check', *PACKAGES)
@@ -43,6 +48,8 @@ def main():
                       ('exporter/tools/vendor/university/LICENSE-PROJECT.md', 'CustomEngineLayer.txt'),
                       ('exporter/tools/vendor/skate3_ui/LICENSE', 'skate3_ui.txt')]:
         shutil.copy2(ROOT / src, licenses / name)
+    for name in EXTRA_LICENSES:
+        shutil.copy2(PREBUILT / name, licenses / name)
     out = ROOT / 'release'
     run(PY, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile', '--windowed', '--name', NAME,
         '--paths', ROOT / 'exporter',
@@ -51,6 +58,8 @@ def main():
         '--add-data', f'{ROOT / "exporter" / "tools"}{SEP}tools',
         '--add-data', f'{ROOT / "addon" / "skategm"}{SEP}payload/addon',
         '--add-binary', f'{DLL}{SEP}payload',
+        '--add-binary', f'{PREBUILT / EXTRAS[0]}{SEP}payload',
+        '--add-data', f'{PREBUILT / EXTRAS[1]}{SEP}payload',
         '--add-data', f'{licenses}{SEP}licenses',
         '--exclude-module', 'bpy', '--exclude-module', 'mathutils',
         '--copy-metadata', 'numpy', '--copy-metadata', 'Pillow',

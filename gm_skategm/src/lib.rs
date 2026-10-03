@@ -15,6 +15,9 @@
 
 pub mod coords;
 mod engine;
+#[cfg_attr(not(feature = "engine"), allow(dead_code))]
+mod pad;
+mod picker;
 mod lua;
 mod memory;
 pub mod rails;
@@ -1046,6 +1049,44 @@ unsafe extern "C" fn set_input_blocked(l: State) -> c_int {
     })
 }
 
+unsafe extern "C" fn pick_image(l: State) -> c_int {
+    guarded(l, |lua| {
+        let dir = pad::module_dir().and_then(|d| d.parent().and_then(|p| p.parent()).map(|g| g.join("data").join("skategm").join("boards")));
+        match dir {
+            Some(dir) => lua.push_bool(picker::start(dir)),
+            None => lua.push_bool(false),
+        }
+        1
+    })
+}
+
+unsafe extern "C" fn picked_image(l: State) -> c_int {
+    guarded(l, |lua| match picker::take() {
+        picker::Picked::Idle => {
+            lua.push_str("idle");
+            1
+        }
+        picker::Picked::Open => {
+            lua.push_str("open");
+            1
+        }
+        picker::Picked::Cancelled => {
+            lua.push_str("cancelled");
+            1
+        }
+        picker::Picked::Done(name) => {
+            lua.push_str("done");
+            lua.push_str(&name);
+            2
+        }
+        picker::Picked::Failed(why) => {
+            lua.push_str("failed");
+            lua.push_str(&why);
+            2
+        }
+    })
+}
+
 unsafe extern "C" fn set_marker_blocked(l: State) -> c_int {
     guarded(l, |lua| {
         engine::MARKER_BLOCKED.store(lua.number(1, 0.0) != 0.0, std::sync::atomic::Ordering::Relaxed);
@@ -1142,6 +1183,8 @@ unsafe extern "C" fn poll(l: State) -> c_int {
         lua.field_num("moving", MOVING_COUNT.load(std::sync::atomic::Ordering::Relaxed) as f64);
         lua.field_bool("inputBlocked", engine::INPUT_BLOCKED.load(std::sync::atomic::Ordering::Relaxed));
         lua.field_bool("markerBlocked", engine::MARKER_BLOCKED.load(std::sync::atomic::Ordering::Relaxed));
+        lua.field_str("padName", &engine::PAD_NAME.lock().unwrap_or_else(|e| e.into_inner()));
+        lua.field_str("padType", &engine::PAD_KIND.lock().unwrap_or_else(|e| e.into_inner()));
         if let Some(w) = &h.world {
             lua.field_str("world", w);
         }
@@ -1795,6 +1838,8 @@ pub unsafe extern "C" fn gmod13_open(l: State) -> c_int {
         ("SetCameraShake", set_camera_shake),
         ("SetInputBlocked", set_input_blocked),
         ("SetMarkerBlocked", set_marker_blocked),
+        ("PickImage", pick_image),
+        ("PickedImage", picked_image),
         ("SetFrozen", set_frozen),
         ("CollisionHas", collision_has),
         ("PhyHulls", phy_hulls),

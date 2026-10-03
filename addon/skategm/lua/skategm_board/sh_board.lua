@@ -81,7 +81,7 @@ function BOARD.ValidModel(path)
 	return type(path) == "string" and #path <= BOARD.MAX_MODEL_PATH and path:lower():match("^models/[%w_/%-%.]+%.mdl$") ~= nil and not path:find("..", 1, true)
 end
 
-BOARD.COLOUR_MODES = { "My player colour", "Rainbow", "This colour" }
+BOARD.COLOUR_MODES = { "My player colour", "Rainbow", "Custom colour" }
 
 local function Num(v, lo, hi, default)
 	v = tonumber(v)

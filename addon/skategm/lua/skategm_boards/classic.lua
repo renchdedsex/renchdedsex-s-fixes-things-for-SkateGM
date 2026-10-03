@@ -15,6 +15,7 @@ local CLASSIC = BOARD.RegisterType({
 	fields = {
 		{ key = "pattern", kind = "choice", convar = "skategm_grip_pattern", choices = PATTERNS, default = 1, label = "Grip tape pattern" },
 		{ key = "pattern_color", kind = "color", convar = "skategm_grip_pattern_color", default = "255 255 255", label = "Pattern colour" },
+		{ key = "fit", kind = "choice", convar = "skategm_board_image_fit", choices = { { "Stretch" }, { "Fill" } }, default = 1, label = "Image fit" },
 	},
 })
 
@@ -37,7 +38,7 @@ end
 function CLASSIC.draw(ctx)
 	local look, opts = ctx.look or {}, ctx.opts or {}
 	local pc = BOARD.ParseColor(opts.pattern_color)
-	ctx.DrawBoard(ctx.P, { graphic = ctx.graphic, wheel = look.wheels, under = look.mat, grip = look.deck, rocket = ctx.rocket, trucks = not ctx.hover,
+	ctx.DrawBoard(ctx.P, { graphic = ctx.graphic, wheel = look.wheels, under = look.mat, grip = look.deck, rocket = ctx.rocket, trucks = not ctx.hover, underFit = opts.fit == 2,
 		pattern = CLASSIC.Pattern(opts), patternColor = pc and Color(pc[1], pc[2], pc[3]) or nil })
 	return true
 end

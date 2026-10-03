@@ -20,6 +20,7 @@ else:
 
 TITLE = 'SkateGM Setup'
 DLL = 'gmcl_skategm_win64.dll'
+BIN_EXTRAS = ['skategm_sdl2.dll', 'skategm_gamecontrollerdb.txt']
 OLD_FILES = ['lua/bin/gmcl_sk8_win64.dll']
 OLD_ADDONS = ['skate3_native', 'skategm']
 DEFAULT_DATA = Path(os.environ.get('LOCALAPPDATA', str(Path.home()))) / 'SkateGM' / 'data'
@@ -31,7 +32,9 @@ def payload_dir(name):
     if bundled.exists():
         return bundled
     repo = Path(__file__).resolve().parent.parent
-    return {'addon': repo / 'addon' / 'skategm', DLL: repo / 'gm_skategm' / 'prebuilt' / DLL}[name]
+    if name == 'addon':
+        return repo / 'addon' / 'skategm'
+    return repo / 'gm_skategm' / 'prebuilt' / name
 
 
 # --------------------------------------------------------------------------
@@ -150,7 +153,8 @@ def install(gmod, xex, data, report, skip_convert=False):
     report('Installing the engine module...')
     (garrysmod / 'lua' / 'bin').mkdir(parents=True, exist_ok=True)
     try:
-        shutil.copy2(payload_dir(DLL), garrysmod / 'lua' / 'bin' / DLL)
+        for name in [DLL, *BIN_EXTRAS]:
+            shutil.copy2(payload_dir(name), garrysmod / 'lua' / 'bin' / name)
     except PermissionError:
         raise RuntimeError("Couldn't replace the engine module: close Garry's Mod and try again.")
     (garrysmod / 'data' / 'skategm').mkdir(parents=True, exist_ok=True)
@@ -163,7 +167,7 @@ def uninstall(gmod, data, report, remove_data=False):
     garrysmod = Path(gmod) / 'garrysmod'
     for old in OLD_ADDONS:
         remove_tree(garrysmod / 'addons' / old)
-    for f in ['lua/bin/' + DLL, *OLD_FILES]:
+    for f in ['lua/bin/' + n for n in [DLL, *BIN_EXTRAS]] + OLD_FILES:
         try:
             (garrysmod / f).unlink(missing_ok=True)
         except PermissionError:

@@ -125,6 +125,12 @@ texts = {}
 S.noPad = true
 S.MarkerPaint(1920, 1080)
 print("no controller: says so:", table.concat(texts, "|"):find("Connect a controller", 1, true) and "OK" or "<-- WRONG")
+print("... and that PlayStation and other pads work too:", table.concat(texts, "|"):find("PlayStation", 1, true) and "OK" or "<-- WRONG")
+texts = {}
+S.padName = "none usable (not recognised as a gamepad: Redragon Harrow)"
+S.MarkerPaint(1920, 1080)
+print("... a pad it can't use: named, with where its mapping goes:", table.concat(texts, "|"):find("Redragon Harrow: add its mapping", 1, true) and "OK" or "<-- WRONG")
+S.padName = nil
 S.noPad = false
 draw.SimpleText, surface.DrawRect = realSimple, realRect
 

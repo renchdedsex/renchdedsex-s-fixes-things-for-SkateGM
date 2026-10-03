@@ -279,7 +279,9 @@ function R.Paint(w, h)
 	}, w, h, { w / 2 - w * 0.2, y + h * 0.02 })
 	if v.savedAt and (RealTime and RealTime() or 0) - v.savedAt < 6 then
 		draw.SimpleText("Saved: " .. v.saved, "skategm_replay_mid", w / 2, h * 0.16, Color(120, 220, 255), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
-		draw.SimpleText("in " .. R.FolderText() .. "  -  watch it again from LB + RB > Replays", "skategm_replay_small", w / 2, h * 0.16 + h * 0.035, Color(220, 220, 220), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+		local P = SKATEGM_UI and SKATEGM_UI.pad
+		local again = "watch it again from LB + RB > Replays"
+		draw.SimpleText("in " .. R.FolderText() .. "  -  " .. (P and P.T and P.T(again) or again), "skategm_replay_small", w / 2, h * 0.16 + h * 0.035, Color(220, 220, 220), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
 	end
 	local trick = v.frame and v.frame.trick
 	if trick then draw.SimpleText(trick, "skategm_replay_mid", w / 2, h * 0.08, Color(255, 200, 70), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP) end

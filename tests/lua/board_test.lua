@@ -78,6 +78,20 @@ local noseT
 for _, t in ipairs(under) do for i = 1, 3 do if t[i].x > 15 then noseT = math.min(noseT or 1, t[6][i][2]) end end end
 print(string.format("underside image: %d triangles, texture inside the image %s", #under, #under == 48 * 8 * 2 and uvok and ulo < 0.01 and uhi > 0.99 and "OK" or "<-- WRONG"))
 print("image top at the nose:", noseT and noseT < 0.05 and "OK" or "<-- WRONG")
+local function tex(w, h) return { GetTexture = function() return { Width = function() return w end, Height = function() return h end } end } end
+local wide, tall = SkateGM.UnderFit(tex(1000, 1000)), SkateGM.UnderFit(tex(100, 1000))
+print("scale to fill: a square picture shows the middle quarter-ish of its width, all its height", wide and wide[2] == 1 and wide[1] > 0.2 and wide[1] < 0.3 and "OK" or "<-- WRONG")
+print("... a very tall one all its width, part of its height", tall and tall[1] == 1 and tall[2] > 0.3 and tall[2] < 0.5 and "OK" or "<-- WRONG")
+local filled = B.UnderTriangles(wide[1], wide[2])
+local fx, ulo2, uhi2, vlo2, vhi2 = 0, 1, 0, 1, 0
+for _, t in ipairs(filled) do
+	for i = 1, 3 do
+		fx = math.max(fx, math.abs(t[i].x))
+		local uv = t[6][i]
+		ulo2, uhi2, vlo2, vhi2 = math.min(ulo2, uv[1]), math.max(uhi2, uv[1]), math.min(vlo2, uv[2]), math.max(vhi2, uv[2])
+	end
+end
+print("... the whole deck is covered, the picture's middle on it (not stretched)", fx > 15 and ulo2 > 0.35 and uhi2 < 0.65 and vlo2 < 0.01 and vhi2 > 0.99 and "OK" or "<-- WRONG")
 draws = {}
 local setMats = {}
 render.SetMaterial = function(m) setMats[#setMats + 1] = m end

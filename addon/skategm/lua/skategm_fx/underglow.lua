@@ -3,7 +3,7 @@ local GLOW = BOARD.RegisterEffect({
 	fields = {
 		{ key = "on", kind = "bool", convar = "skategm_underglow", default = false, label = "Underglow: a light under the board" },
 		{ key = "mode", kind = "choice", convar = "skategm_underglow_mode", choices = BOARD.COLOUR_MODES, default = 1, label = "Underglow colour" },
-		{ key = "color", kind = "color", convar = "skategm_underglow_color", default = "0 200 255", label = "Underglow: this colour" },
+		{ key = "color", kind = "color", convar = "skategm_underglow_color", default = "0 200 255", label = "Underglow: custom colour", showWhen = { "mode", 3 } },
 		{ key = "bright", kind = "number", convar = "skategm_underglow_bright", min = 1, max = 10, default = 5, decimals = 0, label = "Underglow brightness" },
 	},
 })

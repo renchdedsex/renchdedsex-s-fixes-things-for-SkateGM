@@ -109,6 +109,82 @@ end
 
 -- my board as it's set right now (not as the server last heard it): for
 -- previews, the same shape LookFor gives
+C.SHRINK_SIDE = 1024
+local SHRINK_STEPS = { { 1, 90 }, { 1, 75 }, { 0.75, 75 }, { 0.5, 75 }, { 0.35, 70 } }
+
+function C.FreeName(stem, ext)
+	for n = 1, 999 do
+		local name = n == 1 and (stem .. "." .. ext) or string.format("%s (%d).%s", stem, n, ext)
+		if not file.Exists(C.DIR .. name, "DATA") then return name end
+	end
+end
+
+function C.ShrinkStep(job)
+	local mat = Material("../data/" .. C.DIR .. job.name, "smooth")
+	if not mat or mat:IsError() then return nil, "couldn't open the image" end
+	local step = SHRINK_STEPS[job.step]
+	local tw, th = mat:Width(), mat:Height()
+	local k = math.min(1, C.SHRINK_SIDE / math.max(tw, th, 1)) * step[1]
+	local w, h = math.max(16, math.floor(tw * k)), math.max(16, math.floor(th * k))
+	local rt = GetRenderTargetEx("skategm_shrink_" .. w .. "x" .. h, w, h, RT_SIZE_LITERAL, MATERIAL_RT_DEPTH_NONE, 0, 0, IMAGE_FORMAT_RGB888)
+	render.PushRenderTarget(rt, 0, 0, w, h)
+	render.Clear(0, 0, 0, 255)
+	cam.Start2D()
+	surface.SetDrawColor(255, 255, 255, 255)
+	surface.SetMaterial(mat)
+	surface.DrawTexturedRect(0, 0, w, h)
+	cam.End2D()
+	local data = render.Capture({ format = "jpeg", quality = step[2], x = 0, y = 0, w = w, h = h, alpha = false })
+	render.PopRenderTarget()
+	return data
+end
+
+function C.Shrink(name, done)
+	C.shrinking = { name = name, done = done, step = 1 }
+	hook.Add("PostRender", "skategm_board_shrink", function()
+		local job = C.shrinking
+		if not job then hook.Remove("PostRender", "skategm_board_shrink") return end
+		local ok, data, err = pcall(C.ShrinkStep, job)
+		if not ok then data, err = nil, tostring(data) end
+		if data and #data <= BOARD.MAX_BYTES then
+			local out = C.FreeName((job.name:gsub("%.%a+$", "")), "jpg")
+			file.Write(C.DIR .. out, data)
+			file.Delete(C.DIR .. job.name)
+			C.shrinking = nil
+			job.done(out)
+		elseif err or job.step >= #SHRINK_STEPS then
+			C.shrinking = nil
+			job.done(nil, err or "the image is too big even shrunk")
+		else
+			job.step = job.step + 1
+		end
+	end)
+end
+
+function C.DeleteImage(name)
+	if not C.ValidFile(name) then return false end
+	file.Delete(C.DIR .. name)
+	if cvImage:GetString() == name then RunConsoleCommand("skategm_board_image", "") end
+	return true
+end
+
+function C.AddImage(name, done)
+	if not C.ValidFile(name) then return done(nil, "not a PNG or JPG file name") end
+	if (file.Size(C.DIR .. name, "DATA") or 0) <= BOARD.MAX_BYTES then return done(name) end
+	C.Shrink(name, done)
+end
+
+function C.MyImageName(image)
+	local stamp = file.Time and file.Time(C.DIR .. image, "DATA") or 0
+	local m = C.myImage
+	if m and m.file == image and m.stamp == stamp then return m.name end
+	local data, kind = C.ReadImage(image)
+	local name = data and BOARD.Hash(data) or nil
+	if name and not C.CachePath(name) then C.Store(name, kind, data) end
+	C.myImage = { file = image, stamp = stamp, name = name }
+	return name
+end
+
 function C.MyLookNow()
 	local deck, wheels, image = C.MyLook()
 	local def = C.MyType()
@@ -117,7 +193,7 @@ function C.MyLookNow()
 	for _, fx in ipairs(BOARD.EFFECTS) do effects[fx.id] = BOARD.EffectOptions(x, fx.id) end
 	local cvRocket = GetConVar and GetConVar("skategm_rocket")
 	return { type = def and def.id or BOARD.DEFAULT_TYPE, opts = BOARD.Options(x), effects = effects, deck = ToColor(BOARD.ParseColor(deck)), wheels = ToColor(BOARD.ParseColor(wheels)),
-		mat = (def and def.image and image ~= "") and C.Material(image, RealTime()) or nil, rocket = cvRocket and cvRocket:GetBool() or false,
+		mat = (def and def.image and image ~= "" and C.MyImageName(image)) and C.Material(C.MyImageName(image), RealTime()) or nil, rocket = cvRocket and cvRocket:GetBool() or false,
 		rollSound = BOARD.ROLL_SOUNDS[x.rs or 1][2], rocketSound = BOARD.ROCKET_SOUNDS[x.ks or 1][2], hover = x.hv == true }
 end
 

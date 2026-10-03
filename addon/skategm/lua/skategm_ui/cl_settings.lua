@@ -58,14 +58,24 @@ SET.BoolRow, SET.ChoiceRow, SET.NumberRow, SET.ColourRow = BoolRow, ChoiceRow, N
 -- def.rows(List) -> { rows })
 function SET.FieldRows(def, rows)
 	if def.rows then for _, r in ipairs(def.rows(List) or {}) do rows[#rows + 1] = r end end
+	local byKey, shapesPage = {}, {}
 	for _, f in ipairs(def.fields or {}) do
-		if f.convar then
+		byKey[f.key] = f
+		if f.showWhen then shapesPage[f.showWhen[1]] = true end
+	end
+	local function shown(f)
+		local w = f.showWhen
+		local on = w and byKey[w[1]]
+		return not on or math.floor(NowNum(on.convar, on.default or 1)) == w[2]
+	end
+	for _, f in ipairs(def.fields or {}) do
+		if f.convar and shown(f) then
 			local label = f.label or f.key
 			if f.kind == "bool" then rows[#rows + 1] = BoolRow(label, f.convar)
 			elseif f.kind == "choice" then
 				local names = {}
 				for i, c in ipairs(f.choices or {}) do names[i] = type(c) == "table" and c[1] or tostring(c) end
-				rows[#rows + 1] = ChoiceRow(label, f.convar, names)
+				rows[#rows + 1] = ChoiceRow(label, f.convar, names, shapesPage[f.key] and function() SET.RefreshBoard() end or nil)
 			elseif f.kind == "number" then
 				rows[#rows + 1] = NumberRow(label, f.convar, f.min, f.max, (f.max - f.min) / 20, function(v) return string.format("%." .. (f.decimals or 2) .. "f", v) end)
 			elseif f.kind == "color" then rows[#rows + 1] = ColourRow(label, f.convar)
@@ -139,13 +149,53 @@ function SET.BoardPage()
 	rows[#rows + 1] = ColourRow("Wheel colour", "skategm_wheel_color")
 	if def and def.image and C.ImageFiles then
 		local files = C.ImageFiles()
+		local can = skategm ~= nil and skategm.PickImage ~= nil
 		local names = { "None" }
 		for _, f in ipairs(files) do names[#names + 1] = f end
-		rows[#rows + 1] = List.Choice("Image under the deck", names, function()
+		local add = #names + 1
+		if can then names[add] = "Add new..." end
+		SET.addPending = nil
+		local row = List.Choice("Image under the deck", names, function()
+			if SET.addPending then return add end
 			local cur = Now("skategm_board_image", "")
 			for i, f in ipairs(files) do if f == cur then return i + 1 end end
 			return 1
-		end, function(i) Set("skategm_board_image", i == 1 and "" or files[i - 1]) end)
+		end, function(i)
+			SET.addPending = can and i == add or nil
+			if not SET.addPending then Set("skategm_board_image", i == 1 and "" or files[i - 1]) end
+		end)
+		row.run = function()
+			if SET.addPending then return SET.PickImage() end
+			row.change(1)
+		end
+		row.aText = function() return SET.addPending and "Choose a file" or nil end
+		local function shown()
+			if SET.addPending then return nil end
+			local cur = Now("skategm_board_image", "")
+			for _, f in ipairs(files) do if f == cur then return f end end
+		end
+		local function armed(f) return SET.deleteArmed == f and RealTime() - (SET.deleteAt or 0) < 3 end
+		row.actions = { [B.X] = function()
+			local f = shown()
+			if not f then return end
+			if not armed(f) then
+				SET.deleteArmed, SET.deleteAt = f, RealTime()
+				SET.Say("press X again to delete " .. f)
+				SET.deleteNote = SET.note
+				return
+			end
+			SET.deleteArmed = nil
+			if C.DeleteImage then C.DeleteImage(f) end
+			Set("skategm_board_image", "")
+			SET.Say("deleted " .. f)
+			SET.RefreshBoard()
+		end }
+		row.hints = function()
+			local f = shown()
+			if not f then return {} end
+			return { { keys = { "X" }, text = armed(f) and "Press again to delete" or "Delete this image" } }
+		end
+		rows[#rows + 1] = row
 	end
 	if def then SET.FieldRows(def, rows) end
 	rows[#rows + 1] = BoolRow("Rocket board", "skategm_rocket")
@@ -195,6 +245,8 @@ function SET.AdvancedPage()
 		NumberRow("Sound volume", "skategm_sound_volume", 0, 2, 0.1, Percent),
 		NumberRow("Boombox volume", "skategm_boombox_volume", 0, 1, 0.05, function(v) return v <= 0 and "muted" or Percent(v) end),
 		BoolRow("Show other players' board images", "skategm_show_board_images"),
+		List.Heading("Controller"),
+		ChoiceRow("Button icons", "skategm_button_style", UI.pad.STYLE_NAMES, nil, 0),
 		List.Heading("Riding"),
 		NumberRow("Top speed", "skategm_speed_limit", 0, 60, 5, function(v) return v <= 0 and "no limit" or string.format("%d m/s", v) end),
 		BoolRow("Other players are solid", "skategm_player_collision"),
@@ -270,10 +322,67 @@ function SET.Close() UI.Give("settings") end
 function SET.Top() return SET.stack[#SET.stack] end
 
 function SET.Press(btn)
+	if btn ~= B.X and SET.deleteArmed then
+		SET.deleteArmed = nil
+		if SET.note and SET.note == SET.deleteNote then SET.note = nil end
+	end
 	if List.Input(SET.stack, btn) == "empty" then SET.Close() end
 end
 
+function SET.Say(text) SET.note = { text = text, t = RealTime() } end
+
+function SET.RefreshBoard()
+	local top = SET.Top()
+	if not (top and top.title == "Board") then return end
+	local fresh = SET.BoardPage()
+	fresh.sel = top.sel
+	SET.stack[#SET.stack] = fresh
+end
+
+function SET.FitPage()
+	local function choose(fit)
+		Set("skategm_board_image_fit", fit)
+		SET.stack[#SET.stack] = nil
+		SET.RefreshBoard()
+	end
+	return { title = "Fit the image", sel = math.Clamp(math.floor(NowNum("skategm_board_image_fit", 1)), 1, 2),
+		preview = function(row, x, y, w, h) SET.PaintPreview("under", x, y, w, h, row and row.fit) end, hints = TURN,
+		rows = {
+			{ label = "Stretch", sub = "fills the whole underside", fit = 1, run = function() choose(1) end },
+			{ label = "Fill", sub = "fills it, keeping the picture's shape (edges cut off)", fit = 2, run = function() choose(2) end },
+		} }
+end
+
+function SET.PickImage()
+	if SET.picking or not (skategm and skategm.PickImage) then return end
+	if skategm.PickImage() then
+		SET.picking = true
+		SET.Say("choose a picture in the window that opened")
+	end
+end
+
+function SET.PickThink()
+	if not SET.picking then return end
+	local status, value = skategm.PickedImage()
+	if status == "open" then return end
+	SET.picking = nil
+	if status == "failed" then return SET.Say("couldn't add it: " .. tostring(value)) end
+	if status ~= "done" then return end
+	local C = BOARD and BOARD.client
+	if not (C and C.AddImage) then return end
+	SET.Say("adding " .. value .. "...")
+	C.AddImage(value, function(name, err)
+		if not name then return SET.Say("couldn't add it: " .. tostring(err)) end
+		SET.addPending = nil
+		Set("skategm_board_image", name)
+		SET.Say("added " .. name)
+		SET.RefreshBoard()
+		List.Push(SET.stack, SET.FitPage())
+	end)
+end
+
 function SET.Think(pad, now, dt)
+	SET.PickThink()
 	local stick = PAD.Dead(pad.rx)
 	if stick ~= 0 then
 		SET.spin = (SET.spin + stick * SET.STICK_TURN * dt) % 360
@@ -303,14 +412,20 @@ local function PlayerColour()
 	return pc, Color(math.Clamp(pc.x * 255, 30, 255), math.Clamp(pc.y * 255, 30, 255), math.Clamp(pc.z * 255, 30, 255))
 end
 
-function SET.DrawBoardPreview(x, y, w, h)
+function SET.DrawBoardPreview(x, y, w, h, under, fit)
 	local C = BOARD and BOARD.client
 	local S = SkateGM
 	if not (C and S and S.DrawBoard) then return end
 	local P = SET.BoardPose(SET.spin, 0)
 	local look = C.MyLookNow and C.MyLookNow() or nil
+	if look and fit then
+		local opts = {}
+		for k, v in pairs(look.opts or {}) do opts[k] = v end
+		opts.fit = fit
+		look.opts = opts
+	end
 	local _, graphic = PlayerColour()
-	local ang = Angle(SET.tilt or 20, 180, 0)
+	local ang = Angle(under and -70 or (SET.tilt or 20), 180, 0)
 	cam.Start3D(-ang:Forward() * 46, ang, 40, x, y, w, h, 1, 2000)
 	render.ClearDepth()
 	render.SuppressEngineLighting(true)
@@ -357,7 +472,8 @@ end
 function SET.PaintPreview(kind, x, y, w, h, path)
 	if not (cam and cam.Start3D) then return end
 	draw.RoundedBox(10, x, y, w, h, Color(0, 0, 0, 120))
-	if kind == "model" then SET.DrawModelPreview(x, y, w, h, path) else SET.DrawBoardPreview(x, y, w, h) end
+	if kind == "model" then SET.DrawModelPreview(x, y, w, h, path)
+	else SET.DrawBoardPreview(x, y, w, h, kind == "under", kind == "under" and path or nil) end
 end
 
 function SET.Paint(w, h)

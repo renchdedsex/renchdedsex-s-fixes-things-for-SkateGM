@@ -118,6 +118,23 @@ index dcf667e..b2f1f6c 100644
      /// Imported brush floors can meet at split edges without sharing vertices.
      /// Their continuation is checked at the contact point rather than marking
      /// the entire edge smooth, which would erase a real ledge on an open span.
+diff --git a/crates/skate-host/src/input/platform.rs b/crates/skate-host/src/input/platform.rs
+index 99ad31d..197a026 100644
+--- a/crates/skate-host/src/input/platform.rs
++++ b/crates/skate-host/src/input/platform.rs
+@@ -110,8 +110,11 @@ mod windows {
+             let mut capabilities = MaybeUninit::<Capabilities>::uninit();
+             // SAFETY: writable storage with the SDK ABI; read only on success.
+             let result = unsafe { XInputGetCapabilities(index, 1, capabilities.as_mut_ptr()) };
++            //gm_sk8 addition: some third-party and emulated pads answer
++            //XInputGetState but fail this query; they were dropped as
++            //disconnected. Treat them as ordinary gamepads (subtype 1).
+             if result != 0 {
+-                return Err(DeviceError::Capabilities(result));
++                return Ok(1);
+             }
+             Ok(unsafe { capabilities.assume_init() }.subtype)
+         })?;
 diff --git a/crates/skate-host/src/lib.rs b/crates/skate-host/src/lib.rs
 index d844700..072dbc4 100644
 --- a/crates/skate-host/src/lib.rs
@@ -138,7 +155,7 @@ index d844700..072dbc4 100644
  
  mod session_marker;
 diff --git a/crates/skate-host/src/physics/bridge.rs b/crates/skate-host/src/physics/bridge.rs
-index 8cebe59..9673012 100644
+index 8cebe59..aa7bc44 100644
 --- a/crates/skate-host/src/physics/bridge.rs
 +++ b/crates/skate-host/src/physics/bridge.rs
 @@ -67,8 +67,172 @@ impl Session {
@@ -322,7 +339,7 @@ index 8cebe59..9673012 100644
          self.advance_published()
      }
      pub fn pose(&self) -> Pose {
-@@ -301,10 +466,31 @@ impl InputFrame {
+@@ -301,10 +466,57 @@ impl InputFrame {
      pub fn controller(&self) -> Option<usize> {
          self.samples.iter().position(Result::is_ok)
      }
@@ -332,6 +349,32 @@ index 8cebe59..9673012 100644
 +        for s in self.samples.iter_mut().flatten() {
 +            s.state.buttons &= !mask;
 +        }
++    }
++    /// Each slot's XInput packet number, None if nothing answers there (gm_sk8
++    /// addition: the number changes whenever that pad's state does, so the
++    /// host can follow the pad actually in use).
++    pub fn packet_numbers(&self) -> [Option<u32>; 4] {
++        std::array::from_fn(|i| self.samples[i].as_ref().ok().map(|p| p.number))
++    }
++    /// Leave only this slot's pad in the frame (gm_sk8 addition).
++    pub fn keep_only(&mut self, slot: usize) {
++        for (i, s) in self.samples.iter_mut().enumerate() {
++            if i != slot {
++                *s = Err(crate::input::platform::DeviceError::Disconnected);
++            }
++        }
++    }
++    /// Put a pad read some other way (not XInput) into the first empty slot,
++    /// as an Xbox pad (gm_sk8 addition). Returns the slot, or None if all four
++    /// are taken.
++    pub fn insert_pad(&mut self, number: u32, buttons: u16, triggers: [u8; 2], left: [i16; 2], right: [i16; 2]) -> Option<usize> {
++        let slot = self.samples.iter().position(Result::is_err)?;
++        self.samples[slot] = Ok(crate::input::platform::DevicePacket {
++            number,
++            state: skate_core::input::xbox::XboxState { buttons, triggers, left, right },
++            subtype: 1,
++        });
++        Some(slot)
 +    }
      pub fn buttons(&self) -> u16 {
          self.samples

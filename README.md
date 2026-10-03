@@ -13,7 +13,8 @@ own copy.
 
 - **Garry's Mod on the x86-64 branch.** In Steam, right-click Garry's Mod >
   Properties > Betas, and choose **x86-64**.
-- **An Xbox-style controller.** Skating is controller only.
+- **A controller.** Xbox, PlayStation, Switch Pro and most others work.
+  Skating is controller only.
 - **Your own copy of Skate 3 for the Xbox 360**, dumped by you as a folder
   that holds `default.xex`. If you have an `.iso`, extract it first, for
   example with extract-xiso.
@@ -81,12 +82,17 @@ Everyone who wants to skate runs the installer on their own PC. A dedicated
 server only needs the `skategm` add-on folder, from the release zip, in its
 `garrysmod/addons`.
 
+## What's new
+
+See the [changelog](docs/CHANGELOG.md).
+
 ## Install by hand
 
 If you'd rather not use the installer:
 
 1. Unzip `skategm_<version>.zip`.
-2. Put `gmcl_skategm_win64.dll` in `garrysmod/lua/bin`, making the `bin`
+2. Put `gmcl_skategm_win64.dll`, `skategm_sdl2.dll` and
+   `skategm_gamecontrollerdb.txt` in `garrysmod/lua/bin`, making the `bin`
    folder if it isn't there.
 3. Put the `skategm` folder in `garrysmod/addons`.
 4. Convert your game files with Python 3:

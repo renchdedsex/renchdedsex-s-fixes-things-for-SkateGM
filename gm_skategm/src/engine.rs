@@ -69,6 +69,8 @@ pub enum Input {
 pub static BLOCK_AIR_DISMOUNT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 pub static INPUT_BLOCKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 /// Keep the session marker (LB + D-pad up / down) from the engine.
+pub static PAD_NAME: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+pub static PAD_KIND: std::sync::Mutex<&'static str> = std::sync::Mutex::new("xbox");
 pub static MARKER_BLOCKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 pub fn set_camera_shake(on: bool) {
@@ -110,6 +112,7 @@ mod real {
         pad_triggers: [u8; 2],
         pad_sticks: [[i16; 2]; 2],
         connected: bool,
+        pads: crate::pad::Pads,
     }
 
     /// Y gets you off the board. Its in-air version ("AirDismounting") once
@@ -180,6 +183,7 @@ mod real {
                 pad_triggers: [0, 0],
                 pad_sticks: [[0, 0], [0, 0]],
                 connected: false,
+                pads: crate::pad::Pads::default(),
             })
         }
 
@@ -229,8 +233,23 @@ mod real {
             self.pad_sticks
         }
 
+        fn read_pad(&mut self) -> skate_host::bridge::InputFrame {
+            let mut frame = self.pad.poll();
+            let (slot, other) = self.pads.pick(frame.packet_numbers());
+            frame.keep_only(slot.unwrap_or(usize::MAX));
+            if let Some((number, s)) = other {
+                frame.insert_pad(number, s.buttons, s.triggers, s.left, s.right);
+            }
+            let mut name = super::PAD_NAME.lock().unwrap_or_else(|e| e.into_inner());
+            if *name != self.pads.name {
+                name.clone_from(&self.pads.name);
+            }
+            *super::PAD_KIND.lock().unwrap_or_else(|e| e.into_inner()) = if self.pads.kind.is_empty() { "xbox" } else { self.pads.kind };
+            frame
+        }
+
         pub fn poll_pad(&mut self) {
-            let frame = self.pad.poll();
+            let frame = self.read_pad();
             self.connected = frame.controller().is_some();
             self.pad_buttons = frame.buttons();
             self.pad_triggers = frame.triggers();
@@ -263,7 +282,7 @@ mod real {
         }
 
         pub fn poll_connected(&mut self) -> bool {
-            self.connected = self.pad.poll().controller().is_some();
+            self.connected = self.read_pad().controller().is_some();
             self.connected
         }
 
@@ -272,7 +291,7 @@ mod real {
         pub fn step(&mut self, dt: f32, input: Input) -> Result<(Option<Pose>, u32), String> {
             let pad = match input {
                 Input::Controller => {
-                    let mut frame = self.pad.poll();
+                    let mut frame = self.read_pad();
                     self.connected = frame.controller().is_some();
                     self.pad_buttons = frame.buttons();
                     self.pad_triggers = frame.triggers();

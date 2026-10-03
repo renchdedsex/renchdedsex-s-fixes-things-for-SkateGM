@@ -15,7 +15,7 @@ local TRAIL = BOARD.RegisterEffect({
 	fields = {
 		{ key = "style", kind = "choice", convar = "skategm_trail", choices = STYLES, default = 1, label = "Trail" },
 		{ key = "mode", kind = "choice", convar = "skategm_trail_mode", choices = BOARD.COLOUR_MODES, default = 1, label = "Trail colour" },
-		{ key = "color", kind = "color", convar = "skategm_trail_color", default = "255 60 200", label = "Trail: this colour" },
+		{ key = "color", kind = "color", convar = "skategm_trail_color", default = "255 60 200", label = "Trail: custom colour", showWhen = { "mode", 3 } },
 		{ key = "length", kind = "number", convar = "skategm_trail_length", min = 0.2, max = 3, default = 0.8, decimals = 1, label = "Trail length (seconds)" },
 		{ key = "width", kind = "number", convar = "skategm_trail_width", min = 1, max = 16, default = 4, decimals = 0, label = "Trail width" },
 	},

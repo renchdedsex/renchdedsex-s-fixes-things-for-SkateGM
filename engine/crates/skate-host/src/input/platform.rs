@@ -110,8 +110,11 @@ mod windows {
             let mut capabilities = MaybeUninit::<Capabilities>::uninit();
             // SAFETY: writable storage with the SDK ABI; read only on success.
             let result = unsafe { XInputGetCapabilities(index, 1, capabilities.as_mut_ptr()) };
+            //gm_sk8 addition: some third-party and emulated pads answer
+            //XInputGetState but fail this query; they were dropped as
+            //disconnected. Treat them as ordinary gamepads (subtype 1).
             if result != 0 {
-                return Err(DeviceError::Capabilities(result));
+                return Ok(1);
             }
             Ok(unsafe { capabilities.assume_init() }.subtype)
         })?;

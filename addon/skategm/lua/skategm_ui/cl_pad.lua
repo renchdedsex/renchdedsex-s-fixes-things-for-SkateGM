@@ -157,6 +157,31 @@ PAD.GLYPHS = {
 	LS = { Color(90, 90, 90), "L" }, RS = { Color(90, 90, 90), "R" },
 	LEFT = { Color(90, 90, 90), "<" }, RIGHT = { Color(90, 90, 90), ">" }, UP = { Color(90, 90, 90), "^" }, DOWN = { Color(90, 90, 90), "v" },
 }
+PAD.STYLE_NAMES = { "Automatic", "Xbox", "PlayStation", "Switch" }
+PAD.cvStyle = PAD.cvStyle or (CreateClientConVar and CreateClientConVar("skategm_button_style", "0", true, false,
+	"Button icons: 0 = the controller in use, 1 = Xbox, 2 = PlayStation, 3 = Switch", 0, 3))
+local STYLE_IDS = { "xbox", "playstation", "nintendo" }
+function PAD.Style()
+	local v = PAD.cvStyle and PAD.cvStyle:GetInt() or 0
+	if STYLE_IDS[v] then return STYLE_IDS[v] end
+	local a = PAD.API()
+	local t = a and a.PadType and a.PadType()
+	return (t == "playstation" or t == "nintendo") and t or "xbox"
+end
+local PS_FACE = {
+	A = { Color(124, 178, 232), "cross" }, B = { Color(255, 102, 102), "circle" },
+	X = { Color(225, 135, 200), "square" }, Y = { Color(64, 226, 160), "triangle" },
+}
+PAD.WORDS = {
+	playstation = { LB = "L1", RB = "R1", LT = "L2", RT = "R2", A = "Cross", B = "Circle", X = "Square", Y = "Triangle" },
+	nintendo = { LB = "L", RB = "R", LT = "ZL", RT = "ZR", A = "B", B = "A", X = "Y", Y = "X" },
+}
+function PAD.T(text)
+	local words = PAD.WORDS[PAD.Style()]
+	if not words or type(text) ~= "string" then return text end
+	text = text:gsub("%f[%w]([LR][BT])%f[%W]", function(w) return words[w] end)
+	return (text:gsub("([%+%(] ?)([ABXY])%f[%W]", function(pre, k) return pre .. words[k] end))
+end
 PAD.NAMES = { [B.A] = "A", [B.B] = "B", [B.X] = "X", [B.Y] = "Y", [B.LB] = "LB", [B.RB] = "RB", [B.UP] = "UP", [B.DOWN] = "DOWN", [B.LEFT] = "LEFT", [B.RIGHT] = "RIGHT" }
 PAD.WHITE, PAD.DIM, PAD.GREY, PAD.BLUE = Color(255, 255, 255), Color(120, 120, 120), Color(170, 170, 170), Color(120, 220, 255)
 PAD.PANEL, PAD.SEL = Color(0, 0, 0, 190), Color(120, 220, 255, 60)
@@ -174,14 +199,54 @@ function PAD.Fonts()
 end
 
 function PAD.Text(t, font, x, y, col, ax, ay)
+	t = PAD.T(t)
 	draw.SimpleText(t, font, x + 2, y + 2, Color(0, 0, 0, 180), ax or TEXT_ALIGN_LEFT, ay or TEXT_ALIGN_TOP)
 	draw.SimpleText(t, font, x, y, col or WHITE, ax or TEXT_ALIGN_LEFT, ay or TEXT_ALIGN_TOP)
 end
 
 -- one button as it looks on the pad; returns its width
+local function Shape(kind, cx, cy, size, col)
+	local r, t = size * 0.27, math.max(2, size * 0.11)
+	local back = Color(35, 35, 40)
+	if kind == "circle" then
+		draw.RoundedBox(r, cx - r, cy - r, r * 2, r * 2, col)
+		draw.RoundedBox(r - t, cx - r + t, cy - r + t, (r - t) * 2, (r - t) * 2, back)
+	elseif kind == "square" then
+		surface.SetDrawColor(col)
+		surface.DrawRect(cx - r, cy - r, r * 2, r * 2)
+		surface.SetDrawColor(back)
+		surface.DrawRect(cx - r + t, cy - r + t, (r - t) * 2, (r - t) * 2)
+	elseif kind == "cross" then
+		draw.NoTexture()
+		surface.SetDrawColor(col)
+		surface.DrawTexturedRectRotated(cx, cy, r * 2.4, t, 45)
+		surface.DrawTexturedRectRotated(cx, cy, r * 2.4, t, -45)
+	else
+		local function tri(k)
+			return { { x = cx, y = cy - r * 1.05 * k }, { x = cx + r * 1.2 * k, y = cy + r * 0.65 * k }, { x = cx - r * 1.2 * k, y = cy + r * 0.65 * k } }
+		end
+		draw.NoTexture()
+		surface.SetDrawColor(col)
+		surface.DrawPoly(tri(1))
+		surface.SetDrawColor(back)
+		surface.DrawPoly(tri(1 - t * 1.2 / r))
+	end
+end
+
 function PAD.Glyph(name, x, y, size)
 	local g = PAD.GLYPHS[name]
 	if not g then return 0 end
+	local style = PAD.Style()
+	if style == "playstation" and PS_FACE[name] then
+		draw.RoundedBox(size / 2, x, y, size, size, Color(35, 35, 40))
+		Shape(PS_FACE[name][2], x + size / 2, y + size / 2, size, PS_FACE[name][1])
+		return size
+	end
+	local words = PAD.WORDS[style]
+	if words and words[name] then
+		local face = style == "nintendo" and not g[3]
+		g = { face and Color(55, 55, 60) or g[1], words[name], g[3], not face and g[4] }
+	end
 	local wide = g[3] and size * 1.6 or size
 	draw.RoundedBox(g[3] and 4 or size / 2, x, y, wide, size, g[1])
 	draw.SimpleText(g[2], "skategm_ui_key", x + wide / 2, y + size / 2, g[4] and Color(20, 20, 20) or WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
@@ -356,9 +421,13 @@ function List.Hints(stack, row, page)
 	local out = { { keys = { "UP", "DOWN" }, text = "Choose" } }
 	if row and row.change and not row.disabled then out[#out + 1] = { keys = { "LEFT", "RIGHT" }, text = "Change" } end
 	if row and (row.page or row.run or row.press) then
-		out[#out + 1] = { keys = { "A" }, text = row.aText or (row.page and "Open" or "Select"), lit = not row.disabled }
+		local aText = row.aText
+		if type(aText) == "function" then aText = aText() end
+		out[#out + 1] = { keys = { "A" }, text = aText or (row.page and "Open" or "Select"), lit = not row.disabled }
 	end
-	for _, h in ipairs(row and row.hints or {}) do out[#out + 1] = h end
+	local rowHints = row and row.hints
+	if type(rowHints) == "function" then rowHints = rowHints() end
+	for _, h in ipairs(rowHints or {}) do out[#out + 1] = h end
 	local extra = page and page.hints
 	if type(extra) == "function" then extra = extra(row) end
 	for _, h in ipairs(extra or {}) do out[#out + 1] = h end

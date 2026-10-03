@@ -165,16 +165,27 @@ local function RocketTriangles()
 end
 
 local UNDER_INSET, UNDER_DROP = 0.03, 0.04
-local function UnderTriangles()
+function S.UnderFit(mat)
+	local tex = mat.GetTexture and mat:GetTexture("$basetexture")
+	local tw, th = tex and tex:Width() or 0, tex and tex:Height() or 0
+	if tw <= 0 or th <= 0 then return nil end
+	local deck = (DECK_W - UNDER_INSET) / (DECK_HALF - UNDER_INSET)
+	local a = tw / th
+	if a > deck then return { deck / a, 1 } end
+	return { 1, a / deck }
+end
+
+local function UnderTriangles(cu, cv)
 	local tris = {}
 	local NU, NV = 48, 8
 	local H, W = DECK_HALF - UNDER_INSET, DECK_W - UNDER_INSET
+	cu, cv = cu or 1, cv or 1
 	local WHITE = Color(255, 255, 255)
 	local function pt(ui, vi)
 		local u = -H + (ui / NU) * H * 2
 		local w = math.max(0, DeckHalfWidth(u) - UNDER_INSET)
 		local y = -w + (vi / NV) * 2 * w
-		return Vector(u, y, DeckZ(u, y) - UNDER_DROP), { (y + W) / (2 * W), (H - u) / (2 * H) }
+		return Vector(u, y, DeckZ(u, y) - UNDER_DROP), { 0.5 + ((y + W) / (2 * W) - 0.5) * cu, 0.5 + ((H - u) / (2 * H) - 0.5) * cv }
 	end
 	for ui = 0, NU - 1 do
 		for vi = 0, NV - 1 do
@@ -241,13 +252,14 @@ local function BuildMesh(tris, light)
 	mesh.End()
 	return m
 end
-local function CachedMesh(kind, light, col, col2)
+local function CachedMesh(kind, light, col, col2, fit)
 	local level = math.Clamp(math.floor(light * 8 + 0.5), 2, 10) -- a few light levels
 	local key = kind .. level .. (col and (col.r .. "," .. col.g .. "," .. col.b) or "") .. (col2 and ("/" .. col2.r .. "," .. col2.g .. "," .. col2.b) or "")
+		.. (fit and string.format("|%.2f,%.2f", fit[1], fit[2]) or "")
 	local m = meshCache[key]
 	if m == nil then
 		local ok, built = pcall(function()
-			local tris = kind == "deck" and DeckTriangles(col, col2) or kind == "under" and UnderTriangles() or kind == "top" and TopTriangles(col) or kind == "rocket" and RocketTriangles() or TruckTriangles(col)
+			local tris = kind == "deck" and DeckTriangles(col, col2) or kind == "under" and UnderTriangles(fit and fit[1], fit and fit[2]) or kind == "top" and TopTriangles(col) or kind == "rocket" and RocketTriangles() or TruckTriangles(col)
 			return BuildMesh(tris, level / 8)
 		end)
 		m = ok and built or false
@@ -332,7 +344,7 @@ local function DrawBoardModel(P, o)
 	end
 	local rm = rocket and not RocketModel() and CachedMesh("rocket", light)
 	if rm then rm:Draw() end
-	local um = showDeck and under and CachedMesh("under", light)
+	local um = showDeck and under and CachedMesh("under", light, nil, nil, o.underFit and S.UnderFit(under) or nil)
 	if um then
 		render.SetMaterial(under)
 		um:Draw()

@@ -70,6 +70,10 @@ anything more; the example board uses it for its list of models.
 | `model` | a `models/...mdl` path, or `default` | `default` |
 | `string` | up to `max` characters (64) | `max`, `default` |
 
+Any field can take `showWhen = { "<key>", <value> }`: its row is only shown on
+the Board page while that choice field is set to that value (the effects' colour
+rows use `showWhen = { "mode", 3 }`, shown for "Custom colour").
+
 Pick convar names that won't clash with another add-on's (prefix them with your type id).
 
 ## draw(ctx)
@@ -107,7 +111,7 @@ local HALO = BOARD.RegisterEffect({
 	fields = {
 		{ key = "on", kind = "bool", convar = "halo_on", default = false, label = "Halo over my head" },
 		{ key = "mode", kind = "choice", convar = "halo_mode", choices = BOARD.COLOUR_MODES, default = 2, label = "Halo colour" },
-		{ key = "color", kind = "color", convar = "halo_color", default = "255 230 120", label = "Halo: this colour" },
+		{ key = "color", kind = "color", convar = "halo_color", default = "255 230 120", label = "Halo: custom colour", showWhen = { "mode", 3 } },
 	},
 })
 if not CLIENT then return end

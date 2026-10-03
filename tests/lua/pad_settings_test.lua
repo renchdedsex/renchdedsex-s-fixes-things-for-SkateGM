@@ -87,6 +87,9 @@ check("colour: D-pad right picks the next colour", cvars_.cl_playercolor ~= "0.2
 press(B.B)
 
 -- Board
+local picks, pickStatus, pickValue, added = 0, "open", nil, nil
+skategm = { PickImage = function() picks = picks + 1 return true end, PickedImage = function() return pickStatus, pickValue end }
+BOARD.client.AddImage = function(name, done) added = name done(name) end
 go("Board")
 press(B.A)
 check("the board page has a board preview", type(SET.Top().preview) == "function")
@@ -100,6 +103,45 @@ check("deck colour: next in the palette", cvars_.skategm_deck_color == SET.COLOU
 go("Image under the deck")
 press(B.RIGHT)
 check("image: from the images folder", cvars_.skategm_board_image == "flame.png")
+go("Image under the deck")
+local function imageValue() local p = SET.Top() return UI.List.Rows(p)[p.sel].value() end
+press(B.RIGHT)
+check("the image list ends with Add new...: landing on it changes nothing yet", imageValue() == "Add new..." and cvars_.skategm_board_image == "flame.png" and picks == 0)
+press(B.A)
+check("... A there opens the file picker, says so", picks == 1 and SET.note and SET.note.text:find("window", 1, true))
+press(B.A)
+check("... not twice while it's open", picks == 1)
+pickStatus, pickValue = "done", "skull.png"
+frame(0)
+check("... the picked image is added and chosen", added == "skull.png" and cvars_.skategm_board_image == "skull.png" and SET.note.text:find("added", 1, true))
+check("... then asks how it should fit, with an underside preview", SET.Top().title == "Fit the image" and UI.List.Rows(SET.Top())[1].label == "Stretch"
+	and UI.List.Rows(SET.Top())[2].label == "Fill" and type(SET.Top().preview) == "function")
+press(B.DOWN)
+press(B.A)
+check("... Fill: set, and back on the Board page", cvars_.skategm_board_image_fit == "2" and SET.Top().title == "Board")
+local deleted = {}
+BOARD.client.DeleteImage = function(f) deleted[#deleted + 1] = f return true end
+cvars_.skategm_board_image = "flame.png"
+SET.pending = nil
+SET.RefreshBoard()
+go("Image under the deck")
+local function hintText() for _, hnt in ipairs(UI.List.Hints(SET.stack, UI.List.Rows(SET.Top())[SET.Top().sel], SET.Top())) do if hnt.keys[1] == "X" then return hnt.text end end end
+check("an image shown on the row: X deletes it (says so in the hints)", hintText() == "Delete this image")
+press(B.X)
+check("... the first X only asks to press again", #deleted == 0 and hintText() == "Press again to delete" and SET.note.text:find("again", 1, true))
+press(B.RIGHT)
+press(B.LEFT)
+check("... switching image cancels it: the prompt goes, X asks again", SET.deleteArmed == nil and SET.note == nil and hintText() == "Delete this image" and #deleted == 0)
+press(B.X)
+press(B.X)
+check("... the second deletes it, back to no image", deleted[1] == "flame.png" and cvars_.skategm_board_image == "")
+check("... None shown: nothing to delete", hintText() == nil)
+pickStatus, pickValue = "idle", nil
+SET.PickImage()
+pickStatus, pickValue = "failed", "that isn't a PNG or JPG image"
+frame(0)
+check("... a file that isn't an image: says why", SET.note.text:find("isn't a PNG", 1, true) ~= nil)
+pickStatus = "idle"
 go("Rolling sound")
 press(B.RIGHT)
 check("a sound: changed, and played so you hear it", cvars_.skategm_roll_sound == "2" and played[#played] == "b.wav")

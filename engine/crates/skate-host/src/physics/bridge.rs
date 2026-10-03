@@ -473,6 +473,32 @@ impl InputFrame {
             s.state.buttons &= !mask;
         }
     }
+    /// Each slot's XInput packet number, None if nothing answers there (gm_sk8
+    /// addition: the number changes whenever that pad's state does, so the
+    /// host can follow the pad actually in use).
+    pub fn packet_numbers(&self) -> [Option<u32>; 4] {
+        std::array::from_fn(|i| self.samples[i].as_ref().ok().map(|p| p.number))
+    }
+    /// Leave only this slot's pad in the frame (gm_sk8 addition).
+    pub fn keep_only(&mut self, slot: usize) {
+        for (i, s) in self.samples.iter_mut().enumerate() {
+            if i != slot {
+                *s = Err(crate::input::platform::DeviceError::Disconnected);
+            }
+        }
+    }
+    /// Put a pad read some other way (not XInput) into the first empty slot,
+    /// as an Xbox pad (gm_sk8 addition). Returns the slot, or None if all four
+    /// are taken.
+    pub fn insert_pad(&mut self, number: u32, buttons: u16, triggers: [u8; 2], left: [i16; 2], right: [i16; 2]) -> Option<usize> {
+        let slot = self.samples.iter().position(Result::is_err)?;
+        self.samples[slot] = Ok(crate::input::platform::DevicePacket {
+            number,
+            state: skate_core::input::xbox::XboxState { buttons, triggers, left, right },
+            subtype: 1,
+        });
+        Some(slot)
+    }
     pub fn buttons(&self) -> u16 {
         self.samples
             .iter()

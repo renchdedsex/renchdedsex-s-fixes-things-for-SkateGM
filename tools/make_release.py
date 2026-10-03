@@ -19,6 +19,11 @@ def main():
     out = os.path.join(out_dir, 'skategm_%s.zip' % v)
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         z.write(DLL, 'gmcl_skategm_win64.dll')
+        prebuilt = os.path.dirname(DLL)
+        for name in ['skategm_sdl2.dll', 'skategm_gamecontrollerdb.txt']:
+            z.write(os.path.join(prebuilt, name), name)
+        for name in ['SDL2-LICENSE.txt', 'SDL2-README.txt', 'SDL_GameControllerDB-LICENSE.txt']:
+            z.write(os.path.join(prebuilt, name), 'licenses/' + name)
         exporter = os.path.join(ROOT, 'exporter')
         for base, dirs, files in os.walk(exporter):
             dirs[:] = [d for d in dirs if d != '__pycache__']

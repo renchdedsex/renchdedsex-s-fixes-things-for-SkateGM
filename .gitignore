@@ -16,6 +16,8 @@ gm_skategm/prebuilt/*_5.*.dll
 
 # built engine module: not ours to distribute in the repo (build it, or get it from a release)
 gm_skategm/prebuilt/*.dll
+# SDL2 and the controller database (tools/fetch_sdl.py)
+gm_skategm/prebuilt/*.txt
 
 # exporter build products
 exporter/tools/asset_pipeline/refpack.dll

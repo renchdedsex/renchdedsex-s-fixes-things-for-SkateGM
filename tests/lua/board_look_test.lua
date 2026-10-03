@@ -185,6 +185,10 @@ check("a change sends my look after a moment", sent[1] and sent[1].vals[1] == "1
 runTimers()
 check(string.format("... then the image in %d chunks", #sent - 1), #sent == 4 and sent[2].name == BOARD.NET_UP)
 check("my own image goes into the cache straight away", files["skategm/cache/" .. sha(PNG) .. ".png"] == PNG)
+files["skategm/cache/" .. sha(PNG) .. ".png"] = nil
+C.mats, C.retryAt, C.myImage = {}, {}, nil
+local look = C.MyLookNow()
+check("the settings preview shows my own image (by its cache name, not its file name)", look.mat ~= nil and look.mat.name == "skategm_under_" .. sha(PNG))
 
 local up = {}
 for _, m in ipairs(sent) do if m.name == BOARD.NET_UP then up[#up + 1] = m end end
@@ -352,6 +356,11 @@ check("my effects are sent with my look", sent[1].vals[5]:find("f_trails_style=n
 RunConsoleCommand("skategm_board_type", "classic")
 all = Names()
 check("Board page: each effect's options", all:find("Trail length", 1, true) ~= nil)
+RunConsoleCommand("skategm_trail_mode", "1")
+check("an effect's custom colour row is hidden unless Custom colour is picked", not Names():find("|Trail: custom colour|", 1, true))
+RunConsoleCommand("skategm_trail_mode", "3")
+check("... and shown once it is", Names():find("|Trail: custom colour|", 1, true) ~= nil and BOARD.COLOUR_MODES[3] == "Custom colour")
+RunConsoleCommand("skategm_trail_mode", "1")
 
 local quads, beams, beamPoints, lights, particles = 0, 0, 0, 0, 0
 render = render or {}
@@ -395,3 +404,46 @@ C.Draw(other, P, { type = "classic", opts = { pattern = 1 } }, nil, false, false
 check("no pattern: plain grip", gotParts and gotParts.pattern == nil)
 RunConsoleCommand("skategm_board_type", "classic")
 check("Board page: a pattern list and a pattern colour", Names():find("|Grip tape pattern|", 1, true) and Names():find("|Pattern colour|", 1, true))
+
+-- adding a picked image: small ones as they are, big ones shrunk to a JPG
+do
+	local renderHooks = {}
+	hook.Add = function(ev, id, f) if ev == "PostRender" then renderHooks[id] = f end end
+	hook.Remove = function(ev, id) if ev == "PostRender" then renderHooks[id] = nil end end
+	file.Size = function(f) return files[f] and #files[f] or nil end
+	file.Delete = function(f) files[f] = nil end
+	Material = function(path) return { IsError = function() return false end, Width = function() return 3000 end, Height = function() return 1000 end } end
+	GetRenderTargetEx = function(name, w, h) return { name = name, w = w, h = h } end
+	cam = cam or {}
+	cam.Start2D, cam.End2D = function() end, function() end
+	surface = surface or {}
+	surface.SetDrawColor, surface.SetMaterial, surface.DrawTexturedRect = function() end, function() end, function() end
+	local captures = {}
+	render = render or {}
+	render.PushRenderTarget, render.PopRenderTarget, render.Clear = function() end, function() end, function() end
+	render.Capture = function(o) captures[#captures + 1] = o return string.rep("j", o.quality >= 90 and BOARD.MAX_BYTES + 1 or 1000) end
+	RT_SIZE_LITERAL, MATERIAL_RT_DEPTH_NONE, IMAGE_FORMAT_RGB888 = 0, 0, 0
+	local got
+	files["skategm/boards/small.png"] = PNG
+	C.AddImage("small.png", function(n) got = n end)
+	check("a picked image under the limit is used as it is", got == "small.png")
+	files["skategm/boards/photo.png"] = "\137PNG\r\n\26\n" .. string.rep("p", BOARD.MAX_BYTES + 10)
+	got = nil
+	C.AddImage("photo.png", function(n, err) got = n or err end)
+	for _ = 1, 10 do if renderHooks.skategm_board_shrink then renderHooks.skategm_board_shrink() end end
+	check("a big one is shrunk to a JPG under the limit, longest side 1024 at most", got == "photo.jpg" and #files["skategm/boards/photo.jpg"] <= BOARD.MAX_BYTES
+		and captures[1].w == 1024 and captures[1].h == 341 and captures[1].format == "jpeg")
+	check("... trying lower quality before giving up", #captures == 2 and captures[2].quality < captures[1].quality)
+	check("... the oversized copy is removed, and the drawing hook too", files["skategm/boards/photo.png"] == nil and renderHooks.skategm_board_shrink == nil)
+	render.Capture = function() return string.rep("j", BOARD.MAX_BYTES + 1) end
+	files["skategm/boards/huge.png"] = "\137PNG\r\n\26\n" .. string.rep("p", BOARD.MAX_BYTES + 10)
+	got = nil
+	C.AddImage("huge.png", function(n, err) got = n and "ok" or err end)
+	for _ = 1, 10 do if renderHooks.skategm_board_shrink then renderHooks.skategm_board_shrink() end end
+	check("... and if nothing fits, it says so", got == "the image is too big even shrunk")
+end
+
+files["skategm/boards/del.png"] = PNG
+RunConsoleCommand("skategm_board_image", "del.png")
+check("deleting the image in use: the file goes, the board shows none", C.DeleteImage("del.png") and files["skategm/boards/del.png"] == nil and convars.skategm_board_image == "")
+check("... nothing outside the images folder can be deleted", C.DeleteImage("../config.txt") == false)
