@@ -121,11 +121,16 @@ effects](docs/BOARDS.md) and [park parts](docs/PARTS.md).
 
 SkateGM's code was written with the help of AI coding tools. I don't
 support using generative AI for creative work like art, music, video, 3D
-models, writing or game design, and I don't generally support giving AI free rein
-over a project's structure and scaffolding either. Skate 3 itself is the
-work of the talented people at EA Black Box. This was just a way to play
-it in multiplayer with my friends, and I thought I might as well release
-it.
+models, writing or game design, and I don't generally support giving AI free
+rein over a project's structure and scaffolding either.
+
+As a hobbyist indie game developer, I do not use generative AI for any
+assets, nor for the game logic development, as I consider video games to be
+pieces of art in every aspect, including the game logic.
+
+Skate 3 itself is the work of the talented people at EA Black Box. This was
+just a way to play it in multiplayer with my friends, and I thought I might
+as well release it.
 
 ## Credits
 
