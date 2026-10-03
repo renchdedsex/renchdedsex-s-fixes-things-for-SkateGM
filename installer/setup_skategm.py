@@ -115,6 +115,18 @@ def convert(xex, data, report):
     exporter.convert(Path(xex), Path(data))
 
 
+IN_USE = "Some SkateGM files are in use: close Garry's Mod (and any window showing its addons folder) and try again."
+
+
+def remove_tree(path):
+    """Delete a folder completely, or say clearly why it can't be."""
+    if not path.exists():
+        return
+    shutil.rmtree(path, ignore_errors=True)
+    if path.exists():
+        raise RuntimeError(IN_USE)
+
+
 def install(gmod, xex, data, report, skip_convert=False):
     gmod = Path(gmod)
     if not is_gmod(gmod):
@@ -131,7 +143,7 @@ def install(gmod, xex, data, report, skip_convert=False):
         raise RuntimeError('The game data conversion did not finish.')
     report('Installing the add-on...')
     for old in OLD_ADDONS:
-        shutil.rmtree(garrysmod / 'addons' / old, ignore_errors=True)
+        remove_tree(garrysmod / 'addons' / old)
     for old in OLD_FILES:
         (garrysmod / old).unlink(missing_ok=True)
     shutil.copytree(payload_dir('addon'), garrysmod / 'addons' / 'skategm')
@@ -143,14 +155,14 @@ def install(gmod, xex, data, report, skip_convert=False):
         raise RuntimeError("Couldn't replace the engine module: close Garry's Mod and try again.")
     (garrysmod / 'data' / 'skategm').mkdir(parents=True, exist_ok=True)
     (garrysmod / 'data' / 'skategm' / 'datapath.txt').write_text(str((data / 'assets').resolve()).replace('\\', '/'), encoding='utf-8')
-    report('Done! Start Garry\'s Mod, load a map and press the skate key (default: bind a key to skategm_toggle), '
-           'or open Utilities > SkateGM in the spawn menu.')
+    report('Done! Start Garry\'s Mod and pick the SkateGM gamemode, or in any other gamemode type '
+           '"bind j skategm_toggle" in the console once and press J.')
 
 
 def uninstall(gmod, data, report, remove_data=False):
     garrysmod = Path(gmod) / 'garrysmod'
     for old in OLD_ADDONS:
-        shutil.rmtree(garrysmod / 'addons' / old, ignore_errors=True)
+        remove_tree(garrysmod / 'addons' / old)
     for f in ['lua/bin/' + DLL, *OLD_FILES]:
         try:
             (garrysmod / f).unlink(missing_ok=True)
@@ -267,8 +279,9 @@ def window():
                 job()
             except Exception as error:
                 traceback.print_exc()
-                say('ERROR: ' + str(error))
-                root.after(0, lambda: messagebox.showerror(TITLE, str(error)))
+                message = str(error) or type(error).__name__
+                say('ERROR: ' + message)
+                root.after(0, lambda: messagebox.showerror(TITLE, message))
             finally:
                 root.after(0, lambda: (busy(False), check()))
         threading.Thread(target=work, daemon=True).start()
