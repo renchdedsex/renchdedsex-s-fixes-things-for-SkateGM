@@ -1,6 +1,6 @@
-# SkateGM
+<p align="center"><img src="docs/logo.png" alt="SkateGM" width="360"></p>
 
-**Skate 3 in Garry's Mod.**
+<p align="center"><b>Skate 3 in Garry's Mod.</b></p>
 
 SkateGM runs Skate 3's board physics, tricks and scoring inside Garry's Mod,
 on any map and with friends. It also comes with minigames, a park editor and
