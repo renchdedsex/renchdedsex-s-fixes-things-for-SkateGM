@@ -35,9 +35,7 @@ press **Uninstall**.
 
 ## Play
 
-- **The SkateGM gamemode:** pick it from Garry's Mod's gamemode list, or
-  load an `sgm_` map such as the included `sgm_warehouse`. Everyone skates
-  all the time.
+- **The SkateGM gamemode:** pick it from the gamemode list. In this mode, every player is forced into Skater mode. If they don't have the mod functioning, they are forced to spectate.
 - **Any other gamemode:** open the console and type `bind j skategm_toggle`
   once. After that, J switches Skater mode on and off.
 
