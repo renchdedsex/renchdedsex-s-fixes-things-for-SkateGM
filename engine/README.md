@@ -30,4 +30,5 @@ rewrites it). They add what Garry's Mod needs:
   `Session::set_moving_collision`) for other players and moving props.
 - carrying the skater on moving and turning platforms;
 - the bail's left stick read through the camera, as on foot;
-- the rocket allowed while powersliding and reverting.
+- the rocket allowed while powersliding and reverting;
+- the unported air dismount step skipped instead of failing the tick.

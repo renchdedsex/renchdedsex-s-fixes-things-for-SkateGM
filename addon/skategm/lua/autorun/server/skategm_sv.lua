@@ -1,4 +1,4 @@
-for _, f in ipairs({ "sound", "hud", "marker", "water", "why", "trace", "board_model", "settings", "replay", "infmap" }) do AddCSLuaFile("skategm/cl_" .. f .. ".lua") end
+for _, f in ipairs({ "sound", "hud", "marker", "water", "why", "trace", "board_model", "settings", "replay", "replay_cam", "replay_fx", "replay_export", "infmap" }) do AddCSLuaFile("skategm/cl_" .. f .. ".lua") end
 -- Server half of SkateGM. The skate simulation runs on the client
 -- (gm_skategm); the server only hides the real player, keeps it following the
 -- skater (so the world around them stays networked), and puts them back on

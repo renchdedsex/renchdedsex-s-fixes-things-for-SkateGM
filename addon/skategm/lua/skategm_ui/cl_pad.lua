@@ -18,7 +18,7 @@ UI.pad = PAD
 UI.combos = UI.combos or {}
 PAD.loaded = true
 
-PAD.B = { UP = 0x0001, DOWN = 0x0002, LEFT = 0x0004, RIGHT = 0x0008, LB = 0x0100, RB = 0x0200, A = 0x1000, B = 0x2000, X = 0x4000, Y = 0x8000 }
+PAD.B = { UP = 0x0001, DOWN = 0x0002, LEFT = 0x0004, RIGHT = 0x0008, START = 0x0010, LB = 0x0100, RB = 0x0200, A = 0x1000, B = 0x2000, X = 0x4000, Y = 0x8000 }
 local B = PAD.B
 PAD.DEADZONE = 0.2
 PAD.REPEAT_DELAY, PAD.REPEAT_RATE = 0.35, 0.09
@@ -155,6 +155,7 @@ PAD.GLYPHS = {
 	RB = { Color(200, 200, 200), "RB", true, true }, LB = { Color(200, 200, 200), "LB", true, true },
 	RT = { Color(200, 200, 200), "RT", true, true }, LT = { Color(200, 200, 200), "LT", true, true },
 	LS = { Color(90, 90, 90), "L" }, RS = { Color(90, 90, 90), "R" },
+	START = { Color(90, 90, 90), "MENU", true },
 	LEFT = { Color(90, 90, 90), "<" }, RIGHT = { Color(90, 90, 90), ">" }, UP = { Color(90, 90, 90), "^" }, DOWN = { Color(90, 90, 90), "v" },
 }
 PAD.STYLE_NAMES = { "Automatic", "Xbox", "PlayStation", "Switch" }
@@ -173,8 +174,8 @@ local PS_FACE = {
 	X = { Color(225, 135, 200), "square" }, Y = { Color(64, 226, 160), "triangle" },
 }
 PAD.WORDS = {
-	playstation = { LB = "L1", RB = "R1", LT = "L2", RT = "R2", A = "Cross", B = "Circle", X = "Square", Y = "Triangle" },
-	nintendo = { LB = "L", RB = "R", LT = "ZL", RT = "ZR", A = "B", B = "A", X = "Y", Y = "X" },
+	playstation = { LB = "L1", RB = "R1", LT = "L2", RT = "R2", A = "Cross", B = "Circle", X = "Square", Y = "Triangle", START = "OPTIONS" },
+	nintendo = { LB = "L", RB = "R", LT = "ZL", RT = "ZR", A = "B", B = "A", X = "Y", Y = "X", START = "+" },
 }
 function PAD.T(text)
 	local words = PAD.WORDS[PAD.Style()]
@@ -301,20 +302,41 @@ function PAD.Legend(rows, w, h, where)
 		return
 	end
 	surface.SetFont("skategm_ui_sub")
-	local total = 0
-	for _, r in ipairs(rows) do
-		if not r.gap then total = total + #r.keys * (size * 1.25) + (r.join and size * 0.6 * (#r.keys - 1) or 0) + surface.GetTextSize(r.text) + size * 1.2 end
+	local function width(r)
+		local kw = 0
+		for _, k in ipairs(r.keys) do
+			local g = PAD.GLYPHS[k]
+			kw = kw + ((g and g[3]) and size * 1.6 or size) + 4
+		end
+		return kw + (r.join and size * 0.6 * (#r.keys - 1) or 0) + 2 + surface.GetTextSize(r.text) + size * 1.2
 	end
-	local x, y
-	if type(where) == "table" then x, y = where[1], where[2] else x, y = (w - total) / 2, h * 0.93 end
-	if where == "bottom" or where == nil then draw.RoundedBox(8, x - 12, y - 8, total + 12, size + 16, PANEL) end
+	local lines, line, lineW = {}, {}, 0
+	local maxW = type(where) == "table" and math.huge or w * 0.94
 	for _, r in ipairs(rows) do
 		if not r.gap then
+			local rw = width(r)
+			if #line > 0 and lineW + rw > maxW then
+				lines[#lines + 1] = { rows = line, w = lineW }
+				line, lineW = {}, 0
+			end
+			line[#line + 1] = r
+			lineW = lineW + rw
+		end
+	end
+	if #line > 0 then lines[#lines + 1] = { rows = line, w = lineW } end
+	local step = size + 22
+	for n, l in ipairs(lines) do
+		local x, y
+		if type(where) == "table" then x, y = where[1], where[2] + (n - 1) * step
+		else x, y = (w - l.w) / 2, h * 0.93 - (#lines - n) * step end
+		if where == "bottom" or where == nil then draw.RoundedBox(8, x - 12, y - 8, l.w + 12, size + 16, PANEL) end
+		for _, r in ipairs(l.rows) do
 			x = keys(r, x, y)
 			draw.SimpleText(r.text, "skategm_ui_sub", x + 2, y + size / 2, r.lit == false and DIM or WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 			x = x + surface.GetTextSize(r.text) + size * 1.2
 		end
 	end
+	return #lines
 end
 
 ---------------------------------------------------------------------------

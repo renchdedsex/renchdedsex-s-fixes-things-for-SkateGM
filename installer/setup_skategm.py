@@ -1,5 +1,5 @@
 """SkateGM installer: finds Garry's Mod, converts the player's own game data
-from their default.xex, and installs the add-on and the engine module.
+from their default.xex or the game's .iso, and installs the add-on and the engine module.
 
 Nothing from the game is bundled: the data is made on this PC from the
 player's own copy. Built into one .exe by tools/build_installer.py.
@@ -140,7 +140,7 @@ def install(gmod, xex, data, report, skip_convert=False):
         report('Game data: already converted, keeping it')
     else:
         if not xex:
-            raise RuntimeError('Choose your default.xex.')
+            raise RuntimeError("Choose your Skate 3 disc image (.iso) or default.xex.")
         convert(xex, data, report)
     if not data_ready(data):
         raise RuntimeError('The game data conversion did not finish.')
@@ -198,7 +198,8 @@ def window():
     frm = ttk.Frame(root, padding=12)
     frm.grid()
     ttk.Label(frm, text='SkateGM', font=('Segoe UI', 16, 'bold')).grid(column=0, row=0, columnspan=3, sticky='w')
-    ttk.Label(frm, text='You need your own legally dumped Xbox 360 copy of the game: choose its default.xex below. '
+    ttk.Label(frm, text='You need your own legally dumped Xbox 360 copy of the game: choose its disc image (.iso), '
+                        'or default.xex from an extracted copy. '
                         'Its data is converted on this PC; nothing is downloaded.', wraplength=520).grid(column=0, row=1, columnspan=3, sticky='w', pady=(0, 8))
 
     def browse_gmod():
@@ -208,7 +209,8 @@ def window():
             check()
 
     def browse_xex():
-        f = filedialog.askopenfilename(title='default.xex from your extracted game folder', filetypes=[('default.xex', 'default.xex'), ('Xbox 360 executable', '*.xex')])
+        f = filedialog.askopenfilename(title='Your Skate 3 disc image (.iso), or default.xex from an extracted copy',
+                                       filetypes=[('Skate 3 disc image or default.xex', '*.iso default.xex'), ('Disc image', '*.iso'), ('default.xex', 'default.xex')])
         if f:
             xex_var.set(f)
 
@@ -218,7 +220,7 @@ def window():
             data_var.set(d)
             check()
 
-    rows = [("Garry's Mod folder", gmod_var, browse_gmod), ('default.xex', xex_var, browse_xex), ('Converted data goes in', data_var, browse_data)]
+    rows = [("Garry's Mod folder", gmod_var, browse_gmod), ('Skate 3 (.iso or default.xex)', xex_var, browse_xex), ('Converted data goes in', data_var, browse_data)]
     for i, (label, var, cmd) in enumerate(rows):
         ttk.Label(frm, text=label).grid(column=0, row=2 + i, sticky='w', **pad)
         ttk.Entry(frm, textvariable=var, width=58).grid(column=1, row=2 + i, **pad)
@@ -295,7 +297,7 @@ def window():
         if not is_gmod(g):
             return messagebox.showerror(TITLE, "Choose your Garry's Mod folder first.")
         if not reuse.get() and not x:
-            return messagebox.showerror(TITLE, 'Choose your default.xex first.')
+            return messagebox.showerror(TITLE, 'Choose your Skate 3 disc image (.iso) or default.xex first.')
         run(lambda: install(g, x, d, say, skip_convert=reuse.get()))
 
     def do_uninstall():
@@ -304,7 +306,7 @@ def window():
             return messagebox.showerror(TITLE, "Choose your Garry's Mod folder first.")
         if not messagebox.askyesno(TITLE, 'Remove SkateGM from Garry\'s Mod?'):
             return
-        remove = messagebox.askyesno(TITLE, 'Also delete your converted game data? (You can always convert it again from your default.xex.)')
+        remove = messagebox.askyesno(TITLE, 'Also delete your converted game data? (You can always convert it again from your game.)')
         run(lambda: uninstall(g, data_var.get().strip() or DEFAULT_DATA, say, remove))
 
     class LogStream:

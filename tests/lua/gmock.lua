@@ -103,6 +103,8 @@ function V:AngleEx(up)
 	local m = Matrix({ { f.x, l.x, u.x, 0 }, { f.y, l.y, u.y, 0 }, { f.z, l.z, u.z, 0 }, { 0, 0, 0, 1 } })
 	return m:GetAngles()
 end
+A.__add = A.__add or function(a, b) return Angle(a.p + b.p, a.y + b.y, a.r + b.r) end
+math.NormalizeAngle = math.NormalizeAngle or function(a) a = a % 360 if a > 180 then a = a - 360 end return a end
 function A:Right() local m = Matrix() m:SetAngles(self) return Vector(-m[1][2], -m[2][2], -m[3][2]) end
 function A:Up() local m = Matrix() m:SetAngles(self) return Vector(m[1][3], m[2][3], m[3][3]) end
 math.Clamp = function(v, a, b) return math.max(a, math.min(b, v)) end

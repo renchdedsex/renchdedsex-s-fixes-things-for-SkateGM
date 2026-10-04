@@ -118,6 +118,26 @@ index dcf667e..b2f1f6c 100644
      /// Imported brush floors can meet at split edges without sharing vertices.
      /// Their continuation is checked at the contact point rather than marking
      /// the entire edge smooth, which would erase a real ledge on an open span.
+diff --git a/crates/skate-host/src/graph_host/motion_execute_leaf.rs b/crates/skate-host/src/graph_host/motion_execute_leaf.rs
+index b4a08cf..e2dc13f 100644
+--- a/crates/skate-host/src/graph_host/motion_execute_leaf.rs
++++ b/crates/skate-host/src/graph_host/motion_execute_leaf.rs
+@@ -349,6 +349,15 @@ pub(super) fn execute(
+                                 .ok_or("LandOnBoard requires SkaterAnim orientation")? ^= 0x80000000;
+                         }
+                     }
++                    crate::graph_host::motion_stock_gameplay::Operation::AirDismounting
++                        if std::env::var("SK8_AIR_DISMOUNT").as_deref() != Ok("fail") =>
++                    {
++                        //gm_sk8 addition: the native producer isn't ported. Failing
++                        //here reset the skater whenever Y was pressed low in the air;
++                        //without it the authored graph still jumps off the board and
++                        //lands on foot (or bails from high up).
++                        let _ = phase;
++                    }
+                     crate::graph_host::motion_stock_gameplay::Operation::UpdateStandingOnCar => {
+                         // This node is a consumer of the moving-object
+                         // publication.  It must not turn an absent publication
 diff --git a/crates/skate-host/src/input/platform.rs b/crates/skate-host/src/input/platform.rs
 index 99ad31d..197a026 100644
 --- a/crates/skate-host/src/input/platform.rs

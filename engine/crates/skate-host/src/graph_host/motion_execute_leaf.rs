@@ -349,6 +349,15 @@ pub(super) fn execute(
                                 .ok_or("LandOnBoard requires SkaterAnim orientation")? ^= 0x80000000;
                         }
                     }
+                    crate::graph_host::motion_stock_gameplay::Operation::AirDismounting
+                        if std::env::var("SK8_AIR_DISMOUNT").as_deref() != Ok("fail") =>
+                    {
+                        //gm_sk8 addition: the native producer isn't ported. Failing
+                        //here reset the skater whenever Y was pressed low in the air;
+                        //without it the authored graph still jumps off the board and
+                        //lands on foot (or bails from high up).
+                        let _ = phase;
+                    }
                     crate::graph_host::motion_stock_gameplay::Operation::UpdateStandingOnCar => {
                         // This node is a consumer of the moving-object
                         // publication.  It must not turn an absent publication

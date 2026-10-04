@@ -197,9 +197,44 @@ pub fn start(dir: PathBuf) -> bool {
     }
 }
 
+pub fn folder(garrysmod: &Path, name: &str) -> Option<PathBuf> {
+    match name {
+        "videos" => Some(garrysmod.join("videos")),
+        "replays" => Some(garrysmod.join("data").join("skategm").join("replays")),
+        "boards" => Some(garrysmod.join("data").join("skategm").join("boards")),
+        _ => None,
+    }
+}
+
+#[cfg(windows)]
+pub fn open_folder(path: &Path) -> bool {
+    use std::ffi::c_void;
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name = "shell32")]
+    extern "system" {
+        fn ShellExecuteW(hwnd: *mut c_void, op: *const u16, file: *const u16, params: *const u16, dir: *const u16, show: i32) -> isize;
+    }
+    let _ = std::fs::create_dir_all(path);
+    let file: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let op: Vec<u16> = "open".encode_utf16().chain(Some(0)).collect();
+    unsafe { ShellExecuteW(std::ptr::null_mut(), op.as_ptr(), file.as_ptr(), std::ptr::null(), std::ptr::null(), 1) > 32 }
+}
+
+#[cfg(not(windows))]
+pub fn open_folder(_path: &Path) -> bool {
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_known_folders_open() {
+        let g = Path::new("C:/gmod/garrysmod");
+        assert_eq!(folder(g, "videos"), Some(g.join("videos")));
+        assert!(folder(g, "../..").is_none() && folder(g, "cfg").is_none());
+    }
 
     #[test]
     fn names_are_cleaned_and_typed_by_content() {

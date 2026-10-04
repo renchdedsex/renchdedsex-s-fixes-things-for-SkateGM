@@ -1060,6 +1060,16 @@ unsafe extern "C" fn pick_image(l: State) -> c_int {
     })
 }
 
+unsafe extern "C" fn open_folder(l: State) -> c_int {
+    guarded(l, |lua| {
+        let name = lua.string(1).unwrap_or_default();
+        let garrysmod = pad::module_dir().and_then(|d| d.parent().and_then(|p| p.parent()).map(|g| g.to_path_buf()));
+        let ok = garrysmod.and_then(|g| picker::folder(&g, &name)).map(|p| picker::open_folder(&p)).unwrap_or(false);
+        lua.push_bool(ok);
+        1
+    })
+}
+
 unsafe extern "C" fn picked_image(l: State) -> c_int {
     guarded(l, |lua| match picker::take() {
         picker::Picked::Idle => {
@@ -1840,6 +1850,7 @@ pub unsafe extern "C" fn gmod13_open(l: State) -> c_int {
         ("SetMarkerBlocked", set_marker_blocked),
         ("PickImage", pick_image),
         ("PickedImage", picked_image),
+        ("OpenFolder", open_folder),
         ("SetFrozen", set_frozen),
         ("CollisionHas", collision_has),
         ("PhyHulls", phy_hulls),

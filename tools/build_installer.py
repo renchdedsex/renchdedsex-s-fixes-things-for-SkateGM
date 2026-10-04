@@ -53,7 +53,7 @@ def main():
     out = ROOT / 'release'
     run(PY, '-m', 'PyInstaller', '--noconfirm', '--clean', '--onefile', '--windowed', '--name', NAME,
         '--paths', ROOT / 'exporter',
-        '--hidden-import', 'numpy', '--hidden-import', 'PIL.Image', '--hidden-import', 'convert',
+        '--hidden-import', 'numpy', '--hidden-import', 'PIL.Image', '--hidden-import', 'convert', '--hidden-import', 'xiso',
         '--add-binary', f'{refpack}{SEP}tools/asset_pipeline',
         '--add-data', f'{ROOT / "exporter" / "tools"}{SEP}tools',
         '--add-data', f'{ROOT / "addon" / "skategm"}{SEP}payload/addon',

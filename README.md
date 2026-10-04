@@ -17,9 +17,8 @@ own copy.
   Properties > Betas, and choose **x86-64**.
 - **A controller.** Xbox, PlayStation, Switch Pro and most others work.
   Skating is controller only.
-- **Your own copy of Skate 3 for the Xbox 360**, dumped by you as a folder
-  that holds `default.xex`. If you have an `.iso`, extract it first, for
-  example with extract-xiso.
+- **Your own copy of Skate 3 for the Xbox 360**, dumped by you: the disc
+  image (`.iso`), or an extracted folder that holds `default.xex`.
 - Windows.
 
 > [!IMPORTANT]
@@ -32,7 +31,7 @@ own copy.
 1. Download **`SkateGM-Setup-<version>.exe`** from the
    [latest release](../../releases/latest).
 2. Close Garry's Mod and run the installer.
-3. Choose your Skate 3 **`default.xex`** and press **Install**.
+3. Choose your Skate 3 **`.iso`** (or **`default.xex`**) and press **Install**.
    The installer finds Garry's Mod on its own; if it can't, choose the folder
    that has `garrysmod` inside. It converts your game files on your PC
    (nothing is downloaded) and installs the add-on and the engine module.
@@ -105,7 +104,7 @@ If you'd rather not use the installer:
 4. Convert your game files with Python 3:
    ```
    pip install numpy Pillow
-   python exporter/convert.py --xex "D:/Games/Skate 3/default.xex" --out C:/skategm
+   python exporter/convert.py --xex "D:/Games/Skate 3.iso" --out C:/skategm
    ```
    SkateGM looks for the data in `C:/skategm/assets`. If you put it
    somewhere else, type `skategm_data "your/folder/assets"` in the console.

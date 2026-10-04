@@ -53,3 +53,21 @@ texts = {}
 style = 2
 PAD.Text("LB + A", "f", 0, 0)
 check("menu text goes through the same names", texts[#texts] == "L1 + Cross")
+
+surface.SetFont = function() end
+surface.GetTextSize = function(t) return #t * 8, 14 end
+draw.RoundedBox = function() end
+local many = {}
+for i = 1, 14 do many[i] = { keys = { "A" }, text = "Some action " .. i } end
+check("a long hint bar wraps onto more lines instead of running off the screen", PAD.Legend(many, 1600, 900, "bottom") >= 2 and PAD.Legend({ many[1] }, 1600, 900, "bottom") == 1)
+
+local boxes, lastText = {}, nil
+draw.RoundedBox = function(_, x, y, w, h) boxes[#boxes + 1] = { x = x, w = w } end
+draw.SimpleText = function(t, font, x) texts[#texts + 1] = t lastText = { t = t, x = x } end
+PAD.GLYPHS.Y = PAD.GLYPHS.Y
+local wide = { { keys = { "LB", "LS" }, join = "+", text = "Trim start" }, { keys = { "LB", "RS" }, join = "+", text = "Trim end" }, { keys = { "LB", "LEFT" }, join = "+", text = "Previous keyframe" }, { keys = { "LB", "RIGHT" }, join = "+", text = "Next keyframe" }, { keys = { "LB", "Y" }, join = "+", text = "Delete nearest keyframe" } }
+boxes = {}
+style = 1
+PAD.Legend(wide, 1600, 900, "bottom")
+local box = boxes[1]
+check("the bar's box reaches past its last words (wide LB buttons counted)", box and lastText and lastText.t == "Delete nearest keyframe" and lastText.x + #lastText.t * 8 <= box.x + box.w)

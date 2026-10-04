@@ -1,12 +1,12 @@
 """Converts the Skate 3 data the gm_skategm module reads, from the player's own
-extracted default.xex: animation banks, state graphs, input and physics
+Xbox 360 disc image (.iso) or extracted default.xex: animation banks, state graphs, input and physics
 settings, and the skater model the board and rig are taken from.
 
 Runs the converters of SK8-ENGINE/skate-3-rust-engine (copied into ./tools,
 commit cb79689). Nothing is downloaded and nothing from the game is bundled.
 Adapted from 2010 Rust Rewrite Mashup's skate/converter/iw4l_skate_convert.py.
 
-    python convert.py --xex <path to default.xex> --out <folder>
+    python convert.py --xex <default.xex or the game's .iso> --out <folder>
 
 Writes <folder>/assets on success; progress lines go to stdout.
 """
@@ -38,13 +38,28 @@ def run_task(script, args):
     return 0
 
 
+FROM_DISC = ['default.xex', 'data/anim', *REQUIRED]
+
+
 def convert(xex, out):
     xex = xex.resolve()
     if xex.suffix.lower() == '.iso':
-        raise RuntimeError('ISO files are not supported. Extract the disc and select its default.xex.')
+        import xiso
+        out = out.resolve()
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='skategm-disc-', dir=out.parent) as disc:
+            print('Reading the files it needs from your disc image', flush=True)
+            try:
+                xiso.extract_files(xex, FROM_DISC, disc, lambda text: print(text, flush=True))
+            except xiso.XisoError as error:
+                raise RuntimeError(f'{xex.name}: {error}. Is this a Skate 3 (Xbox 360) disc image?')
+            return convert_game(Path(disc), out)
     if xex.name.lower() != 'default.xex' or not xex.is_file():
-        raise RuntimeError(f'Select default.xex from an extracted Skate 3 (Xbox 360) game folder, not {xex.name}.')
-    game = xex.parent
+        raise RuntimeError(f"Select default.xex from an extracted Skate 3 (Xbox 360) game folder, or the game's .iso, not {xex.name}.")
+    return convert_game(xex.parent, out)
+
+
+def convert_game(game, out):
     missing = [path for path in REQUIRED if not (game / path).is_file()]
     if missing:
         raise RuntimeError('This folder is missing Skate 3 game data (' + ', '.join(missing) +
