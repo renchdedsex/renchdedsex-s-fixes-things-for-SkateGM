@@ -73,6 +73,25 @@ pub static PAD_NAME: std::sync::Mutex<String> = std::sync::Mutex::new(String::ne
 pub static PAD_KIND: std::sync::Mutex<&'static str> = std::sync::Mutex::new("xbox");
 pub static MARKER_BLOCKED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// The skater's style (skategm.SetStyle): natural stance (1 regular, 0
+/// goofy), animation style name, posture profile, D-pad gestures (Up, Down,
+/// Left, Right). Each change bumps the generation; the simulation applies
+/// it before its next step.
+#[derive(Clone)]
+pub struct Style {
+    pub natural: u32,
+    pub style: String,
+    pub posture: u32,
+    pub gestures: [u32; 4],
+}
+pub static STYLE: std::sync::Mutex<(u64, Option<Style>)> = std::sync::Mutex::new((0, None));
+
+pub fn set_style(s: Style) {
+    let mut g = STYLE.lock().unwrap_or_else(|e| e.into_inner());
+    g.0 += 1;
+    g.1 = Some(s);
+}
+
 pub fn set_camera_shake(on: bool) {
     #[cfg(feature = "engine")]
     skate_host::CAMERA_SHAKE_OFF.store(!on, std::sync::atomic::Ordering::Relaxed);
@@ -113,6 +132,8 @@ mod real {
         pad_sticks: [[i16; 2]; 2],
         connected: bool,
         pads: crate::pad::Pads,
+        /// the STYLE generation last applied
+        style_gen: u64,
     }
 
     /// Y gets you off the board. Its in-air version ("AirDismounting") once
@@ -184,11 +205,24 @@ mod real {
                 pad_sticks: [[0, 0], [0, 0]],
                 connected: false,
                 pads: crate::pad::Pads::default(),
+                style_gen: 0,
             })
+        }
+
+        fn apply_style(&mut self) {
+            let g = super::STYLE.lock().unwrap_or_else(|e| e.into_inner());
+            if g.0 == self.style_gen {
+                return;
+            }
+            self.style_gen = g.0;
+            if let Some(s) = &g.1 {
+                self.session.set_style(s.natural, &s.style, s.posture, s.gestures);
+            }
         }
 
         pub fn activate(&mut self, spawn: [f32; 3], heading: f32) -> Result<Pose, String> {
             self.accumulated = 0.0;
+            self.apply_style();
             self.session.activate(spawn, heading).map(|p| convert(p, &self.session))
         }
 
@@ -289,6 +323,7 @@ mod real {
         /// Advance by `dt` seconds of real time at the simulation's own rate.
         /// Returns the newest pose (if any tick ran) and the number of ticks.
         pub fn step(&mut self, dt: f32, input: Input) -> Result<(Option<Pose>, u32), String> {
+            self.apply_style();
             let pad = match input {
                 Input::Controller => {
                     let mut frame = self.read_pad();

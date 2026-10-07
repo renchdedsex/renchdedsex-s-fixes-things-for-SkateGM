@@ -49,6 +49,10 @@ impl Session {
             "IW4L_SKATE_LOAD physics {}ms",
             started.elapsed().as_millis()
         );
+        let mut physics = physics;
+        // gm_sk8 addition: the stock gesture set (first four in table order),
+        // so the D-pad gestures have selections before the add-on sends its own
+        physics.set_gesture_preferences(Some([0, 1, 2, 3]));
         let skater = SkaterRuntime::load(root, &graphs, &physics, "easy")?;
         eprintln!("IW4L_SKATE_LOAD skater {}ms", started.elapsed().as_millis());
         Ok(Self {
@@ -194,6 +198,20 @@ impl Session {
         for body in self.skater.skeleton.bodies_mut() {
             turn(body);
         }
+    }
+
+    /// The skater's Create-a-Skater settings (gm_sk8 addition): natural stance
+    /// (1 regular, 0 goofy), animation style by name ("" standard, "Loose",
+    /// "Gonzo", "Aggressive", or a pro's own set such as "MikeCarroll"),
+    /// posture profile (0 default, 1 stiff, 2 slouch, 3 buff) and the four
+    /// D-pad gestures (Up, Down, Left, Right; indices into the 37-entry table).
+    pub fn set_style(&mut self, natural: u32, style: &str, posture: u32, gestures: [u32; 4]) {
+        let animation = &mut self.skater.animation;
+        animation.set_customisation(natural, 0);
+        animation.motion.playback_context.pro_skater =
+            skate_core::animation::skeleton_input::name::encode(style.as_bytes());
+        animation.motion.animation.posture.set_profile(posture.min(3));
+        self.physics.set_gesture_preferences(Some(gestures));
     }
 
     /// Back to Skate 3's automatic checkpoint, the last safe spot it recorded,

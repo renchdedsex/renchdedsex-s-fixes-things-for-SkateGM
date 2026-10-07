@@ -212,7 +212,7 @@ function S.WrapModule()
 	if raw.SetMovers then W.SetMovers = function(list) return raw.SetMovers(shiftList(list)) end end
 	W.Poll = function(...)
 		local p = raw.Poll(...)
-        keyboard.Decorate(S,p)
+		keyboard.Decorate(S,p)
 		local o = S.Offset()
 		if o and type(p) == "table" then
 			Shift3(p.pos, o, -1)
@@ -302,7 +302,7 @@ local function Heading()
 end
 
 local function Activate()
-    presentation.Reset(renderBuffer) S.renderP=nil S.renderCam=nil S.renderState=nil S.renderFrame=nil
+	presentation.Reset(renderBuffer) S.renderP=nil S.renderCam=nil S.renderState=nil S.renderFrame=nil
 	local ply = LocalPlayer()
 	local pos = ply:GetPos()
 	skategm.Activate(pos.x, pos.y, pos.z, ply:EyeAngles().y)
@@ -335,7 +335,7 @@ net.Receive("skategm_respawn", function()
 end)
 
 local function TurnOff()
-    presentation.Reset(renderBuffer) S.renderP=nil S.renderCam=nil S.renderState=nil S.renderFrame=nil
+	presentation.Reset(renderBuffer) S.renderP=nil S.renderCam=nil S.renderState=nil S.renderFrame=nil
 	if skategm and skategm.SetFrozen then skategm.SetFrozen(0) end
 	if skategm and skategm.SetInputBlocked then skategm.SetInputBlocked(0) end
 	if skategm and skategm.SetMarkerBlocked then skategm.SetMarkerBlocked(0) end
@@ -437,10 +437,9 @@ concommand.Add("skategm_report", function()
 end)
 
 ---------------------------------------------------------------------------
--- Input: archived keyboard layout and native controller input.
 ---------------------------------------------------------------------------
 hook.Add("InputMouseApply", "skategm", function(cmd, x, y)
-    keyboard.Mouse(S,x,y)
+	keyboard.Mouse(S,x,y)
 	if S.phase ~= "on" then return end
 	return true
 end)
@@ -1048,7 +1047,7 @@ end
 
 function S.Record(now)
 	if not (S.P and S.P.HIPS) then return end
-	record[#record + 1] = { t = now, P = CopyPose(S.P), state = S.pose and S.pose.state, trick = S.H and S.H.trick ~= "" and now - (S.H.trickT or -10) < 2.5 and S.H.trick or nil }
+	record[#record + 1] = { t = now, P = CopyPose(S.P), state = S.pose and S.pose.state, trick = S.H and S.H.trick ~= "" and now - (S.H.trickT or -10) < 2.5 and S.H.trick or nil, rocket = S.rocketOn or nil }
 	while record[1] and now - record[1].t > GHOST_SECONDS do table.remove(record, 1) end
 end
 
@@ -1056,7 +1055,7 @@ end
 function S.RecentClip()
 	if #record == 0 then return nil end
 	local t0, out = record[1].t, {}
-	for i, r in ipairs(record) do out[i] = { t = r.t - t0, P = r.P, state = r.state, trick = r.trick } end
+	for i, r in ipairs(record) do out[i] = { t = r.t - t0, P = r.P, state = r.state, trick = r.trick, rocket = r.rocket } end
 	return out
 end
 
@@ -1110,6 +1109,8 @@ end
 function S.ForgetSkater(key)
 	S.remote[key] = nil
 	S.StopSounds(key)
+	local em = S.emitters and S.emitters[key]
+	if em then S.emitters[key] = nil pcall(function() em:Finish() end) end
 	if IsValid(models[key]) then models[key]:Remove() end
 	models[key] = nil
 end
@@ -1140,8 +1141,11 @@ function S.ClipsThink(now)
 			r.last = now
 			r.state = clip[c.index].state
 			S.remote[c.key] = r
+			c.rocket = clip[c.index].rocket
 			c.index = c.index + 1
 		end
+		local r = S.remote[c.key]
+		if c.rocket and r and r.snaps[#r.snaps] then pcall(S.RocketFlames, r.snaps[#r.snaps].P, now, c.key, true) end
 		if c.index > #clip and elapsed > clip[#clip].t - clip[1].t + 1 then S.StopClip(id) end
 	end
 end
@@ -1177,6 +1181,7 @@ S.L.H, S.L.Shadowed, S.L.cvSounds = H, Shadowed, cvSounds
 include("skategm/cl_marker.lua")
 S.L.WATER, S.L.cvSounds = WATER, cvSounds
 include("skategm/cl_water.lua")
+include("skategm/cl_boundary.lua")
 S.L.PASS, S.L.SOURCE_NAMES, S.L.Say = PASS, SOURCE_NAMES, Say
 include("skategm/cl_why.lua")
 ---------------------------------------------------------------------------
@@ -1277,7 +1282,7 @@ function S.RocketLoopsThink(now)
 	end
 end
 
-function S.RocketFlames(P, now, key)
+function S.RocketFlames(P, now, key, quiet)
 	local pos, fwd = Tail(P)
 	if not pos then return end
 	local em = S.emitters[key]
@@ -1312,12 +1317,12 @@ function S.RocketFlames(P, now, key)
 			dl.brightness, dl.Decay, dl.Size, dl.DieTime = 3, 1000, 180, CurTime() + 0.1
 		end
 	end
-	if cvSounds:GetBool() then S.RocketLoop(key, now) end
+	if not quiet and cvSounds:GetBool() then S.RocketLoop(key, now) end
 end
 
 function S.RocketThink(p, now, dt)
 	local on = cvRocket:GetBool() and S.phase == "on" and p ~= nil
-		and bit.band(p.padButtons or 0, BTN_RS) ~= 0 and OnBoard(p.state)
+		and bit.band(bit.bor(p.padButtons or 0, S.keyboardButtons or 0), BTN_RS) ~= 0 and OnBoard(p.state)
 	on = on and true or false
 	if not on and not S.rocketOn then return end
 	local pos, fwd = Tail(S.P)
@@ -1366,7 +1371,7 @@ end
 
 
 hook.Add("Think", "skategm_controller", function()
-    keyboard.Shortcuts(S)
+	keyboard.Shortcuts(S)
 	local now, p = RealTime(), S.pose
 	if S.phase == "on" then S.ApplyInputBlock() S.ApplyMarkerBlock() end
 	if S.phase == "on" and p and not S.InputBlockWanted() then
@@ -1429,9 +1434,9 @@ hook.Add("Think", "skategm", function()
 		Say("the engine hit an unsupported move and reset your skater: " .. tostring(p.warning))
 	end
 
-	-- Keyboard overrides the native pad only while used, plus its release frame.
 	keyboard.Step(S,p,FrameTime() * (S.timeScale or 1))
-	S.noPad = false -- keyboard is available without a controller
+	if S.keyboardActive then S.keyboardUsed = true end
+	S.noPad = p.pad == false and not (keyboard.Enabled() and S.keyboardUsed)
 	S.padName = p.padName
 	S.engineState = p.state
 
@@ -1457,7 +1462,7 @@ hook.Add("Think", "skategm", function()
 			for name, v in pairs(P) do P[name] = anchor + (v - anchor) * scale end
 		end
 		S.P = P
-        presentation.Push(renderBuffer,p,P,RealTime())
+		presentation.Push(renderBuffer,p,P,RealTime())
 		S.UpdateSkaters(RealTime(), "local") -- this frame's pose, so the skater never lags the camera
 	end
 
@@ -1558,11 +1563,11 @@ end
 
 local retailRig=include("skategm/cl_retarget.lua")
 local function Retarget(ent)
-    local P=ent.Sk8P
-    if S.RenderSpace and P then P=S.RenderSpace(P) end
-    if not (P and P.HIPS and ent.Sk8Rig) then return end
-    if not ent.Sk8Bind then retailRig.Bind(ent) end
-    retailRig.Apply(ent,P)
+	local P=ent.Sk8P
+	if S.RenderSpace and P then P=S.RenderSpace(P) end
+	if not (P and P.HIPS and ent.Sk8Rig) then return end
+	if not ent.Sk8Bind then retailRig.Bind(ent) end
+	retailRig.Apply(ent,P)
 end
 
 S.test = { Retarget = Retarget, Swing = Swing, Basis = Basis, FeedEntities = FeedEntities, sent = sent } -- for offline tests
@@ -1593,10 +1598,10 @@ local function Skater(ply)
 	e:SetSkin(ply:GetSkin())
 	for i = 0, ply:GetNumBodyGroups() - 1 do e:SetBodygroup(i, ply:GetBodygroup(i)) end
 	local seq=-1
-    for _,name in ipairs({"reference","ragdoll","idle_all_01"}) do
-        seq=e:LookupSequence(name) if seq>=0 then break end
-    end
-    e:ResetSequence(math.max(seq,0)) e:SetPlaybackRate(0) e:SetCycle(0)
+	for _,name in ipairs({"reference","ragdoll","idle_all_01"}) do
+		seq=e:LookupSequence(name) if seq>=0 then break end
+	end
+	e:ResetSequence(math.max(seq,0)) e:SetPlaybackRate(0) e:SetCycle(0)
 	-- rig: bone indices for retargeting (parents are read at posing time)
 	local R = { parent = {}, swing = {} }
 	R.pelvis = e:LookupBone("ValveBiped.Bip01_Pelvis")
@@ -1650,9 +1655,7 @@ function S.RenderSkater(e)
 			if not frame or e.Sk8PosedFrame ~= frame then
 				e.Sk8PosedFrame = frame
 				e:InvalidateBoneCache() -- make GMod rebuild (and re-pose) the bones this frame
-                -- Write during BuildBonePositions, while Source grants access.
-                -- SetupBones invokes the registered retarget callback.
-                e:SetupBones()
+				e:SetupBones()
 			end
 			e:DrawModel()
 		end
@@ -1815,16 +1818,16 @@ hook.Add("CalcView", "skategm", function(ply, origin, angles, fov)
 		end
 	end
 	local p = S.pose
-    local cameraPose=S.renderCam or p.cam
+	local cameraPose=S.renderCam or p.cam
 	if cameraPose then
 		local pos = V(cameraPose.pos)
 		local scale = S.loadedScale or 1
 		local anchor=S.anchor
-        local rp=S.renderP
-        if rp and rp.RIGHT_WHEELFRONT and rp.LEFT_WHEELFRONT and rp.RIGHT_WHEELBACK and rp.LEFT_WHEELBACK then
-            anchor=(rp.RIGHT_WHEELFRONT+rp.LEFT_WHEELFRONT+rp.RIGHT_WHEELBACK+rp.LEFT_WHEELBACK)/4
-        end
-        if anchor and math.abs(scale - 1) > 1e-3 then pos = anchor + (pos - anchor) * scale end
+		local rp=S.renderP
+		if rp and rp.RIGHT_WHEELFRONT and rp.LEFT_WHEELFRONT and rp.RIGHT_WHEELBACK and rp.LEFT_WHEELBACK then
+			anchor=(rp.RIGHT_WHEELFRONT+rp.LEFT_WHEELFRONT+rp.RIGHT_WHEELBACK+rp.LEFT_WHEELBACK)/4
+		end
+		if anchor and math.abs(scale - 1) > 1e-3 then pos = anchor + (pos - anchor) * scale end
 		local ang = V(cameraPose.fwd):AngleEx(V(cameraPose.up))
 		local f = cameraPose.fov or fov
 		pos, ang, f = S.CameraAdjust(pos, ang, f, (S.renderP or S.P) and (S.renderP or S.P).HIPS)
@@ -1865,6 +1868,7 @@ end)
 
 
 S.L.Native, S.L.Say, S.L.TurnOff = Native, Say, TurnOff
+S.KeyboardUses = keyboard.Uses
 S.DataPath, S.InstalledDataPath = DataPath, InstalledDataPath
 include("skategm/cl_settings.lua")
 include("skategm/cl_replay.lua")
@@ -1888,8 +1892,8 @@ include("skategm/cl_infmap.lua")
 --   API.Say(text, bad)     a chat line in the add-on's style
 ---------------------------------------------------------------------------
 S.API = {
-    KeyboardHints = keyboard.IsKeyboard,
-    PadType = function() return S.pose and S.pose.padType or nil end,
+	KeyboardHints = keyboard.IsKeyboard,
+	PadType = function() return S.pose and S.pose.padType or nil end,
 	version = 1,
 	IsSkating = function() return S.phase == "on" end,
 	IsLoading = function() return S.phase == "loading" end,
@@ -1941,8 +1945,8 @@ S.API = {
 	Pad = function()
 		if not S.inputBlocked and S.InputBlockWanted() then return nil end
 		local p = S.phase == "on" and S.pose
-        local virtual=keyboard.VirtualPad(S)
-        if virtual then return virtual end
+		local virtual=keyboard.VirtualPad(S)
+		if virtual then return virtual end
 		if not p or p.pad == false then return nil end
 		return { buttons = p.padButtons or 0, lt = p.padLT or 0, rt = p.padRT or 0, lx = p.padLX or 0, ly = p.padLY or 0, rx = p.padRX or 0, ry = p.padRY or 0 }
 	end,
@@ -2027,14 +2031,13 @@ end
 S.MigrateOldSettings()
 S.LoadConfig(true)
 
--- Sample once before drawing so camera, body and board share one render time.
 function S.SampleRender()
-    local frame=FrameNumber()
-    if S.renderFrame==frame then return end
-    S.renderFrame=frame
-    if S.phase~="on" then return end
-    S.renderP,S.renderCam,S.renderState=presentation.Sample(renderBuffer,RealTime())
-    if S.renderP then S.UpdateSkaters(RealTime(),"local") end
+	local frame=FrameNumber()
+	if S.renderFrame==frame then return end
+	S.renderFrame=frame
+	if S.phase~="on" then return end
+	S.renderP,S.renderCam,S.renderState=presentation.Sample(renderBuffer,RealTime())
+	if S.renderP then S.UpdateSkaters(RealTime(),"local") end
 end
 hook.Add("PreRender","skategm_interpolated_pose",S.SampleRender)
 

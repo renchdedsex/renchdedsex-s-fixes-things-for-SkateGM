@@ -18,7 +18,7 @@ UI.pad = PAD
 UI.combos = UI.combos or {}
 PAD.loaded = true
 
-PAD.B = { UP = 0x0001, DOWN = 0x0002, LEFT = 0x0004, RIGHT = 0x0008, LB = 0x0100, RB = 0x0200, A = 0x1000, B = 0x2000, X = 0x4000, Y = 0x8000 }
+PAD.B = { UP = 0x0001, DOWN = 0x0002, LEFT = 0x0004, RIGHT = 0x0008, START = 0x0010, LB = 0x0100, RB = 0x0200, A = 0x1000, B = 0x2000, X = 0x4000, Y = 0x8000 }
 local B = PAD.B
 PAD.DEADZONE = 0.2
 PAD.REPEAT_DELAY, PAD.REPEAT_RATE = 0.35, 0.09
@@ -155,6 +155,7 @@ PAD.GLYPHS = {
 	RB = { Color(200, 200, 200), "RB", true, true }, LB = { Color(200, 200, 200), "LB", true, true },
 	RT = { Color(200, 200, 200), "RT", true, true }, LT = { Color(200, 200, 200), "LT", true, true },
 	LS = { Color(90, 90, 90), "L" }, RS = { Color(90, 90, 90), "R" },
+	START = { Color(90, 90, 90), "MENU", true },
 	LEFT = { Color(90, 90, 90), "<" }, RIGHT = { Color(90, 90, 90), ">" }, UP = { Color(90, 90, 90), "^" }, DOWN = { Color(90, 90, 90), "v" },
 }
 PAD.STYLE_NAMES = { "Automatic", "Xbox", "PlayStation", "Switch" }
@@ -173,14 +174,36 @@ local PS_FACE = {
 	X = { Color(225, 135, 200), "square" }, Y = { Color(64, 226, 160), "triangle" },
 }
 PAD.WORDS = {
-	playstation = { LB = "L1", RB = "R1", LT = "L2", RT = "R2", A = "Cross", B = "Circle", X = "Square", Y = "Triangle" },
-	nintendo = { LB = "L", RB = "R", LT = "ZL", RT = "ZR", A = "B", B = "A", X = "Y", Y = "X" },
+	playstation = { LB = "L1", RB = "R1", LT = "L2", RT = "R2", A = "Cross", B = "Circle", X = "Square", Y = "Triangle", START = "OPTIONS" },
+	nintendo = { LB = "L", RB = "R", LT = "ZL", RT = "ZR", A = "B", B = "A", X = "Y", Y = "X", START = "+" },
 }
 function PAD.T(text)
-	local words = PAD.KeyboardHints and PAD.KeyboardHints() and PAD.KEYBOARD_LABELS or PAD.WORDS[PAD.Style()]
+	local keys = PAD.KeyboardHints()
+	local words = keys and PAD.KEYBOARD_LABELS or PAD.WORDS[PAD.Style()]
 	if not words or type(text) ~= "string" then return text end
-	text = text:gsub("%f[%w]([LR][BT])%f[%W]", function(w) return words[w] end)
-	return (text:gsub("([%+%(] ?)([ABXY])%f[%W]", function(pre, k) return pre .. words[k] end))
+	local function word(k) return keys and PAD.KeyLabel(k) or words[k] end
+	text = text:gsub("%f[%w]([LR][BT])%f[%W]", word)
+	if keys then text = text:gsub("D%-pad (%a+)", function(d) return PAD.KeyLabel(d:upper()) or ("D-pad " .. d) end) end
+	return (text:gsub("([%+%(] ?)([ABXY])%f[%W]", function(pre, k) return pre .. word(k) end))
+end
+PAD.KEYBOARD_LABELS = { A = "Space", B = "S", X = "Shift", Y = "F", LB = "Z", RB = "C", LT = "Q", RT = "E", LS = "WASD", RS = "Arrows",
+	UP = "I", DOWN = "K", LEFT = "U", RIGHT = "O", START = "Enter" }
+function PAD.KeyboardHints()
+	local api = PAD.API()
+	return api and api.KeyboardHints and api.KeyboardHints() or false
+end
+PAD.KEYBOARD_MENU_LABELS = { B = "Backspace", LS = "WASD" }
+function PAD.KeyLabel(name)
+	if PAD.KeyboardHints() then return (UI.open and PAD.KEYBOARD_MENU_LABELS[name]) or PAD.KEYBOARD_LABELS[name] end
+end
+function PAD.GlyphWidth(name, size)
+	local label = PAD.KeyLabel(name)
+	if label then
+		surface.SetFont("skategm_ui_key")
+		return math.max(size, (surface.GetTextSize(label) or 0) + size * 0.5)
+	end
+	local g = PAD.GLYPHS[name]
+	return g and (g[3] and size * 1.6 or size) or 0
 end
 PAD.NAMES = { [B.A] = "A", [B.B] = "B", [B.X] = "X", [B.Y] = "Y", [B.LB] = "LB", [B.RB] = "RB", [B.UP] = "UP", [B.DOWN] = "DOWN", [B.LEFT] = "LEFT", [B.RIGHT] = "RIGHT" }
 PAD.WHITE, PAD.DIM, PAD.GREY, PAD.BLUE = Color(255, 255, 255), Color(120, 120, 120), Color(170, 170, 170), Color(120, 220, 255)
@@ -204,26 +227,6 @@ function PAD.Text(t, font, x, y, col, ax, ay)
 	draw.SimpleText(t, font, x, y, col or WHITE, ax or TEXT_ALIGN_LEFT, ay or TEXT_ALIGN_TOP)
 end
 
--- Labels describe the actual archived keyboard mapping; arrows distinguish
--- the Flickit keys from I/K/U/O, which emulate the controller D-pad.
-PAD.KEYBOARD_LABELS={A="Space",B="S",X="Shift",Y="F",LB="Z",RB="C",LT="Q",RT="E",LS="WASD",RS="←↑↓→",UP="I ↑",DOWN="K ↓",LEFT="U ←",RIGHT="O →"}
-function PAD.KeyboardHints()
-    local api=PAD.API()
-    return api and api.KeyboardHints and api.KeyboardHints() or false
-end
-function PAD.KeyLabel(name)
-    if PAD.KeyboardHints() then return PAD.KEYBOARD_LABELS[name] end
-
-end
-function PAD.GlyphWidth(name,size)
-    local label=PAD.KeyLabel(name)
-    if label then
-        surface.SetFont("skategm_ui_key")
-        return math.max(size,surface.GetTextSize(label)+size*.5)
-    end
-    local g=PAD.GLYPHS[name]
-    return g and (g[3] and size*1.6 or size) or 0
-end
 -- one button as it looks on the pad; returns its width
 local function Shape(kind, cx, cy, size, col)
 	local r, t = size * 0.27, math.max(2, size * 0.11)
@@ -254,15 +257,15 @@ local function Shape(kind, cx, cy, size, col)
 end
 
 function PAD.Glyph(name, x, y, size)
+	local label = PAD.KeyLabel(name)
+	if label then
+		local wide = PAD.GlyphWidth(name, size)
+		draw.RoundedBox(4, x, y, wide, size, Color(55, 60, 68))
+		draw.SimpleText(label, "skategm_ui_key", x + wide / 2, y + size / 2, WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		return wide
+	end
 	local g = PAD.GLYPHS[name]
 	if not g then return 0 end
-	local label=PAD.KeyLabel(name)
-    local wide=PAD.GlyphWidth(name,size)
-    if label then
-        draw.RoundedBox(4,x,y,wide,size,Color(55,60,68))
-        draw.SimpleText(label,"skategm_ui_key",x+wide/2,y+size/2,WHITE,TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER)
-        return wide
-    end
 	local style = PAD.Style()
 	if style == "playstation" and PS_FACE[name] then
 		draw.RoundedBox(size / 2, x, y, size, size, Color(35, 35, 40))
@@ -274,6 +277,7 @@ function PAD.Glyph(name, x, y, size)
 		local face = style == "nintendo" and not g[3]
 		g = { face and Color(55, 55, 60) or g[1], words[name], g[3], not face and g[4] }
 	end
+	local wide = g[3] and size * 1.6 or size
 	draw.RoundedBox(g[3] and 4 or size / 2, x, y, wide, size, g[1])
 	draw.SimpleText(g[2], "skategm_ui_key", x + wide / 2, y + size / 2, g[4] and Color(20, 20, 20) or WHITE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	return wide
@@ -319,34 +323,47 @@ function PAD.Legend(rows, w, h, where)
 				surface.DrawRect(x, y + rowH * 0.2, pw, 1)
 				y = y + rowH * 0.5
 			else
-				local endX=keys(r, x, y)
-				draw.SimpleText(r.text, "skategm_ui_row", math.max(endX+4,x + size * 3.6), y + size / 2, r.lit == false and DIM or WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+				keys(r, x, y)
+				draw.SimpleText(r.text, "skategm_ui_row", x + size * 3.6, y + size / 2, r.lit == false and DIM or WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 				y = y + rowH
 			end
 		end
 		return
 	end
 	surface.SetFont("skategm_ui_sub")
-	local total = 0
-	for _, r in ipairs(rows) do
-		if not r.gap then
-            local keyWidth=0
-            for _,name in ipairs(r.keys) do keyWidth=keyWidth+PAD.GlyphWidth(name,size)+4 end
-            surface.SetFont("skategm_ui_sub")
-            total=total+keyWidth+(r.join and size*.6*(#r.keys-1) or 0)+surface.GetTextSize(r.text)+size*1.2
-        end
+	local function width(r)
+		local kw = 0
+		for _, k in ipairs(r.keys) do kw = kw + PAD.GlyphWidth(k, size) + 4 end
+		surface.SetFont("skategm_ui_sub")
+		return kw + (r.join and size * 0.6 * (#r.keys - 1) or 0) + 2 + surface.GetTextSize(r.text) + size * 1.2
 	end
-	local x, y
-	if type(where) == "table" then x, y = where[1], where[2] else x, y = (w - total) / 2, h * 0.93 end
-	if where == "bottom" or where == nil then draw.RoundedBox(8, x - 12, y - 8, total + 12, size + 16, PANEL) end
+	local lines, line, lineW = {}, {}, 0
+	local maxW = type(where) == "table" and math.huge or w * 0.94
 	for _, r in ipairs(rows) do
 		if not r.gap then
+			local rw = width(r)
+			if #line > 0 and lineW + rw > maxW then
+				lines[#lines + 1] = { rows = line, w = lineW }
+				line, lineW = {}, 0
+			end
+			line[#line + 1] = r
+			lineW = lineW + rw
+		end
+	end
+	if #line > 0 then lines[#lines + 1] = { rows = line, w = lineW } end
+	local step = size + 22
+	for n, l in ipairs(lines) do
+		local x, y
+		if type(where) == "table" then x, y = where[1], where[2] + (n - 1) * step
+		else x, y = (w - l.w) / 2, h * 0.93 - (#lines - n) * step end
+		if where == "bottom" or where == nil then draw.RoundedBox(8, x - 12, y - 8, l.w + 12, size + 16, PANEL) end
+		for _, r in ipairs(l.rows) do
 			x = keys(r, x, y)
-            surface.SetFont("skategm_ui_sub")
 			draw.SimpleText(r.text, "skategm_ui_sub", x + 2, y + size / 2, r.lit == false and DIM or WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 			x = x + surface.GetTextSize(r.text) + size * 1.2
 		end
 	end
+	return #lines
 end
 
 ---------------------------------------------------------------------------

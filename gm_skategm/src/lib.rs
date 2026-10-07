@@ -18,9 +18,11 @@ mod engine;
 #[cfg_attr(not(feature = "engine"), allow(dead_code))]
 mod pad;
 mod picker;
+pub mod mux;
 mod lua;
 mod memory;
 pub mod rails;
+pub mod authored;
 pub mod world;
 pub mod scene;
 pub mod cleanup;
@@ -1070,6 +1072,40 @@ unsafe extern "C" fn open_folder(l: State) -> c_int {
     })
 }
 
+unsafe extern "C" fn mux_webm(l: State) -> c_int {
+    guarded(l, |lua| {
+        let names = [lua.string(1).unwrap_or_default(), lua.string(2).unwrap_or_default(), lua.string(3).unwrap_or_default()];
+        let offset = lua.number(4, 0.0);
+        let videos = pad::module_dir()
+            .and_then(|d| d.parent().and_then(|p| p.parent()).map(|g| g.to_path_buf()))
+            .and_then(|g| picker::folder(&g, "videos"));
+        let result = match videos {
+            None => Err("can't find the videos folder".to_string()),
+            Some(_) if !names.iter().all(|n| mux::safe_name(n)) => Err("bad video name".to_string()),
+            Some(dir) => {
+                let file = |n: &str| dir.join(format!("{n}.webm"));
+                mux::mux_files(&file(&names[0]), &file(&names[1]), &file(&names[2]), offset).map(|_| {
+                    for n in &names[..2] {
+                        let _ = std::fs::remove_file(file(n));
+                        let _ = std::fs::remove_file(dir.join(format!("{n}.raw")));
+                    }
+                })
+            }
+        };
+        match result {
+            Ok(()) => {
+                lua.push_bool(true);
+                1
+            }
+            Err(e) => {
+                lua.push_bool(false);
+                lua.push_str(&e);
+                2
+            }
+        }
+    })
+}
+
 unsafe extern "C" fn picked_image(l: State) -> c_int {
     guarded(l, |lua| match picker::take() {
         picker::Picked::Idle => {
@@ -1582,6 +1618,25 @@ unsafe extern "C" fn set_air_dismount_block(l: State) -> c_int {
     })
 }
 
+/// skategm.SetStyle(regular, style, posture, up, down, left, right): the
+/// skater's natural stance (1 regular, 0 goofy), animation style ("" standard,
+/// "Loose", "Gonzo", "Aggressive", "MikeCarroll", ...), posture (0-3) and the
+/// D-pad gestures (0-36 each). Applied before the next step, and kept for
+/// later sessions.
+unsafe extern "C" fn set_style(l: State) -> c_int {
+    guarded(l, |lua| {
+        let g = |i: i32, d: f64| (lua.number(i, d).max(0.0) as u32).min(36);
+        engine::set_style(engine::Style {
+            natural: u32::from(lua.number(1, 1.0) != 0.0),
+            style: lua.string(2).unwrap_or_default().chars().filter(char::is_ascii_alphanumeric).take(31).collect(),
+            posture: (lua.number(3, 0.0).max(0.0) as u32).min(3),
+            gestures: [g(4, 0.0), g(5, 1.0), g(6, 2.0), g(7, 3.0)],
+        });
+        lua.push_bool(true);
+        1
+    })
+}
+
 unsafe extern "C" fn set_camera_shake(l: State) -> c_int {
     guarded(l, |lua| {
         engine::set_camera_shake(lua.number(1, 1.0) != 0.0);
@@ -1846,11 +1901,13 @@ pub unsafe extern "C" fn gmod13_open(l: State) -> c_int {
         ("SetSpeedLimit", set_speed_limit),
         ("SetAirDismountBlock", set_air_dismount_block),
         ("SetCameraShake", set_camera_shake),
+        ("SetStyle", set_style),
         ("SetInputBlocked", set_input_blocked),
         ("SetMarkerBlocked", set_marker_blocked),
         ("PickImage", pick_image),
         ("PickedImage", picked_image),
         ("OpenFolder", open_folder),
+        ("MuxWebm", mux_webm),
         ("SetFrozen", set_frozen),
         ("CollisionHas", collision_has),
         ("PhyHulls", phy_hulls),
