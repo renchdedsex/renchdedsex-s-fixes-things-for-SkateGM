@@ -1176,6 +1176,7 @@ include("skategm/cl_sound.lua")
 local cvSounds, cvVolume = S.L.cvSounds, S.L.cvVolume
 S.L.Say, S.L.WATER = Say, WATER
 include("skategm/cl_hud.lua")
+include("skategm/cl_hud_original.lua") -- Skate 3's own trick display (gm_sk8 addition)
 local EnsureHud, H, Shadowed, cvHud = S.L.EnsureHud, S.L.H, S.L.Shadowed, S.L.cvHud
 S.L.H, S.L.Shadowed, S.L.cvSounds = H, Shadowed, cvSounds
 include("skategm/cl_marker.lua")
@@ -1572,6 +1573,19 @@ end
 
 S.test = { Retarget = Retarget, Swing = Swing, Basis = Basis, FeedEntities = FeedEntities, sent = sent } -- for offline tests
 
+-- the player's skin, bodygroups and sub-materials (clothes, face) on their skater
+-- (ply can be a ghost's stand-in, S.ClipProxy: its clothes are its player's)
+local function CopyLook(e, ply)
+	e:SetSkin(ply:GetSkin())
+	for i = 0, ply:GetNumBodyGroups() - 1 do e:SetBodygroup(i, ply:GetBodygroup(i)) end
+	local src = ply.GetMaterials and ply or (ply.ghost and ply.of)
+	if not (IsValid(src) and src.GetMaterials and src.GetSubMaterial) then return end
+	for i = 0, #(src:GetMaterials() or {}) - 1 do
+		local sub = src:GetSubMaterial(i) or ""
+		if (e:GetSubMaterial(i) or "") ~= sub then e:SetSubMaterial(i, sub ~= "" and sub or nil) end
+	end
+end
+
 local function Skater(ply)
 	local mdl = ply:GetModel()
 	local e = models[ply]
@@ -1579,8 +1593,7 @@ local function Skater(ply)
 		local now = RealTime()
 		if now >= (e.Sk8LookCheck or 0) then
 			e.Sk8LookCheck = now + 0.5
-			e:SetSkin(ply:GetSkin())
-			for i = 0, ply:GetNumBodyGroups() - 1 do e:SetBodygroup(i, ply:GetBodygroup(i)) end
+			CopyLook(e, ply)
 		end
 		return e
 	end
@@ -1595,8 +1608,7 @@ local function Skater(ply)
 	e.RenderOverride = e.Sk8Render
 	e:SetRenderBounds(Vector(-100, -100, -100), Vector(100, 100, 100))
 	e.GetPlayerColor = function() return IsValid(ply) and ply:GetPlayerColor() or Vector(1, 1, 1) end
-	e:SetSkin(ply:GetSkin())
-	for i = 0, ply:GetNumBodyGroups() - 1 do e:SetBodygroup(i, ply:GetBodygroup(i)) end
+	CopyLook(e, ply)
 	local seq=-1
 	for _,name in ipairs({"reference","ragdoll","idle_all_01"}) do
 		seq=e:LookupSequence(name) if seq>=0 then break end
@@ -1658,6 +1670,7 @@ function S.RenderSkater(e)
 				e:SetupBones()
 			end
 			e:DrawModel()
+			hook.Run("SkateGMDrawSkater", e, e.Sk8Ply) -- (accessories worn on the skater)
 		end
 		if cvBones:GetBool() or not e.Sk8Rig then
 			render.SetColorMaterial()

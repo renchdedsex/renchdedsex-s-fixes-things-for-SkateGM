@@ -28,6 +28,9 @@ pub struct Pose {
     pub velocity: Vec3,
     pub tick: u64,
     pub state: String,
+    /// gm_sk8: Skate 3 audio surface tags (& 0x7F, 0 = none): the four wheels'
+    /// ground, then the grind's
+    pub audio: [u32; 5],
 }
 impl Session {
     pub fn new(
@@ -214,6 +217,41 @@ impl Session {
         self.physics.set_gesture_preferences(Some(gestures));
     }
 
+    /// Skate 3's difficulty (gm_sk8 addition): 0 easy, 1 normal, 2 hardcore,
+    /// the game's own physics_mode tables, switched on the next tick.
+    pub fn set_difficulty(&mut self, index: u32) {
+        let d = crate::difficulty::Difficulty::ALL[index.min(2) as usize];
+        self.physics.set_difficulty(d);
+    }
+
+    /// Start Skate 3's shove (the arm swing it uses on pedestrians) straight
+    /// ahead, held for `ticks` (gm_sk8 addition: the RB punch). Only while
+    /// riding on the ground or on foot; returns whether it could start.
+    pub fn shove(&mut self, ticks: u32) -> bool {
+        let state = format!("{:?}", self.skater.player_state.current());
+        if state.contains("Air") || state.contains("Wipeout") || state.starts_with("Grind") {
+            return false;
+        }
+        self.skater.forced_shove = ticks.max(1);
+        true
+    }
+
+    /// Knock the skater off into a bail with this velocity (skate space, m/s),
+    /// where they are now (gm_sk8 addition: hit by another player). Uses the
+    /// engine's vehicle-ejection reset, which enters WipeoutGround seeded
+    /// with momentum.
+    pub fn knock_down(&mut self, velocity: [f32; 3]) -> bool {
+        let state = format!("{:?}", self.skater.player_state.current());
+        if state.contains("Wipeout") || state.contains("Teleport") {
+            return false;
+        }
+        let mut transform = self.skater.animated_skeleton.roots.animation_to_world;
+        transform[3][3] = 0.;
+        let spin = [velocity[2] * 0.3, 0.0, -velocity[0] * 0.3];
+        self.skater.teleport_state.request_vehicle_ejection(transform, velocity, spin);
+        true
+    }
+
     /// Back to Skate 3's automatic checkpoint, the last safe spot it recorded,
     /// as the game does after falling into water (gm_sk8 addition).
     pub fn return_to_checkpoint(&mut self) -> Result<(), String> {
@@ -366,6 +404,10 @@ impl Session {
             velocity: Vec3::new(v.x, v.y, v.z),
             tick: self.physics.ticks,
             state: format!("{:?}", self.skater.player_state.current()),
+            audio: {
+                let w = self.physics.riding.wheel_lines.audio_surfaces;
+                [w[0], w[1], w[2], w[3], self.skater.player_input.physical.grinds.audio_surface_216 & 0x7F]
+            },
         }
     }
 }
@@ -393,6 +435,46 @@ impl CollisionBuilder {
             grind: std::sync::Arc::new(crate::grind_world::StaticProvider::new(Some(&map))?),
         })
     }
+}
+
+/// gm_sk8: the map's retail grind splines (a .skate rail's native bytes, in
+/// skate space) with the first and last point of the polyline each was
+/// sampled into. A rail handed in with those ends grinds on the spline itself,
+/// as it did from a .skate package, instead of on the polyline.
+pub static NATIVE_RAILS: std::sync::Mutex<Vec<([f32; 3], [f32; 3], Vec<u8>)>> = std::sync::Mutex::new(Vec::new());
+
+/// gm_sk8: the map's collision triangles (by their corners' bits) with their
+/// retail surface, native edge codes and sidedness, as a .skate package's
+/// RWCM gave them. Without them every edge was guessed from welded
+/// neighbours, and where two pieces of a curved rail's tube meet that came
+/// out sharp: the board caught on it.
+type NativeTriangle = (u32, Option<[u8; 3]>, bool);
+static NATIVE_TRIANGLES: std::sync::Mutex<Option<std::collections::HashMap<[u32; 9], NativeTriangle>>> =
+    std::sync::Mutex::new(None);
+
+pub fn set_native_triangles(tris: Vec<([[f32; 3]; 3], u32, Option<[u8; 3]>, bool)>) {
+    let map = (!tris.is_empty()).then(|| {
+        tris.into_iter().map(|(p, surface, edges, one_sided)| (key(&p), (surface, edges, one_sided))).collect()
+    });
+    *NATIVE_TRIANGLES.lock().unwrap_or_else(|e| e.into_inner()) = map;
+}
+
+fn key(p: &[[f32; 3]; 3]) -> [u32; 9] {
+    std::array::from_fn(|i| p[i / 3][i % 3].to_bits())
+}
+
+/// Bit 31 of a collision triangle's surface: its mesh is one-sided (only from
+/// NATIVE_TRIANGLES; skate_world takes it off again).
+pub(crate) const SURFACE_ONE_SIDED: u32 = 1 << 31;
+/// Bit 30: the triangle came from NATIVE_TRIANGLES (its surface and
+/// sidedness are the game's own).
+pub(crate) const SURFACE_RETAIL: u32 = 1 << 30;
+
+fn native_for(points: &[[f32; 3]]) -> Option<Vec<u8>> {
+    let (first, last) = (points.first()?, points.last()?);
+    let near = |a: &[f32; 3], b: &[f32; 3]| (0..3).all(|i| (a[i] - b[i]).abs() <= 0.01);
+    let natives = NATIVE_RAILS.lock().unwrap_or_else(|e| e.into_inner());
+    natives.iter().find(|(f, l, _)| near(f, first) && near(l, last)).map(|n| n.2.clone())
 }
 
 /// IW4L's collision as a Skate map: one material, the triangles and rails.
@@ -430,15 +512,21 @@ fn collision_map(
             geometry: Geometry {
                 vertices: vec![],
                 indices: vec![],
-                collision: triangles
-                    .into_iter()
-                    .map(|points| Collision {
-                        points,
-                        surface: 0,
-                        material: 1,
-                        native_edges: None,
-                    })
-                    .collect(),
+                collision: {
+                    let natives = NATIVE_TRIANGLES.lock().unwrap_or_else(|e| e.into_inner());
+                    triangles
+                        .into_iter()
+                        .map(|points| {
+                            let native = natives.as_ref().and_then(|m| m.get(&key(&points)));
+                            Collision {
+                                points,
+                                surface: native.map_or(0, |n| (n.0 & 0xFFFF) | SURFACE_RETAIL | if n.2 { SURFACE_ONE_SIDED } else { 0 }),
+                                material: 1,
+                                native_edges: native.and_then(|n| n.1),
+                            }
+                        })
+                        .collect()
+                },
             },
             rails: rails
                 .into_iter()
@@ -446,8 +534,8 @@ fn collision_map(
                 .map(|(i, p)| Rail {
                     name: format!("iw4_edge_{i}"),
                     closed: false,
+                    native: native_for(&p),
                     points: p,
-                    native: None,
                 })
                 .collect(),
             doors: vec![],

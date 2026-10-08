@@ -177,10 +177,19 @@ function BOARD.Options(x)
 	return opts
 end
 
+-- (only what differs from the defaults: the look goes out as a networked
+-- string, which is cut off past BOARD.MAX_LOOK; Decode fills the defaults in)
+BOARD.MAX_LOOK = 511
 function BOARD.Encode(look)
 	local t = { d = look.d or "", w = look.w or "", i = look.i or "", r = look.r and "1" or "" }
-	for k, v in pairs(BOARD.CleanExtra(look.x)) do t[k] = v end
-	return util.TableToJSON(t)
+	local x = BOARD.CleanExtra(look.x)
+	local base = BOARD.CleanExtra({ bt = x.bt })
+	for k, v in pairs(x) do
+		if k == "bt" or base[k] ~= v then t[k] = v end
+	end
+	local s = util.TableToJSON(t)
+	if #s > BOARD.MAX_LOOK then ErrorNoHalt(string.format("[SkateGM] board look is %d characters, over %d: it will be cut off\n", #s, BOARD.MAX_LOOK)) end
+	return s
 end
 
 function BOARD.Decode(s)

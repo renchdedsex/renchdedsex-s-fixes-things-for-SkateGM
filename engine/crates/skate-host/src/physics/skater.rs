@@ -53,6 +53,8 @@ pub(crate) struct SkaterRuntime {
     pub grind: super::grind::Runtime,
     /// gm_sk8 addition: GrindTrick202 (ported)
     pub grind_trick: super::grind_trick::GrindTrick,
+    /// gm_sk8 addition: ticks left of a host-requested shove (the RB punch)
+    pub forced_shove: u32,
     pub footplant: super::footplant::Footplant,
     pub boneless: super::boneless::Boneless,
     pub handplant: super::handplant::Handplant,
@@ -256,6 +258,7 @@ impl SkaterRuntime {
             grind_camera: super::grind_camera::GrindCamera::default(),
             grind: super::grind::Runtime::load(&data)?,
             grind_trick: Default::default(),
+            forced_shove: 0,
             footplant: super::footplant::Footplant::load(&data)?,
             boneless: super::boneless::Boneless::load(&data)?,
             handplant: super::handplant::Handplant::load(&data)?,

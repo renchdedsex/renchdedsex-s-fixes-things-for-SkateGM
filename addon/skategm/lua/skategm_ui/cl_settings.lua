@@ -69,13 +69,14 @@ function SET.FieldRows(def, rows)
 		return not on or math.floor(NowNum(on.convar, on.default or 1)) == w[2]
 	end
 	for _, f in ipairs(def.fields or {}) do
-		if f.convar and shown(f) then
+		-- (hidden: console only, or shown by the def's own rows)
+		if f.convar and shown(f) and not f.hidden then
 			local label = f.label or f.key
 			if f.kind == "bool" then rows[#rows + 1] = BoolRow(label, f.convar)
 			elseif f.kind == "choice" then
 				local names = {}
 				for i, c in ipairs(f.choices or {}) do names[i] = type(c) == "table" and c[1] or tostring(c) end
-				rows[#rows + 1] = ChoiceRow(label, f.convar, names, shapesPage[f.key] and function() SET.RefreshBoard() end or nil)
+				rows[#rows + 1] = ChoiceRow(label, f.convar, names, (shapesPage[f.key] or f.refresh) and function() SET.RefreshBoard() end or nil)
 			elseif f.kind == "number" then
 				rows[#rows + 1] = NumberRow(label, f.convar, f.min, f.max, (f.max - f.min) / 20, function(v) return string.format("%." .. (f.decimals or 2) .. "f", v) end)
 			elseif f.kind == "color" then rows[#rows + 1] = ColourRow(label, f.convar)
@@ -242,6 +243,7 @@ function SET.AdvancedPage()
 		List.Heading("Screen and sound"),
 		BoolRow("Trick score display", "skategm_hud"),
 		BoolRow("Board sounds", "skategm_sounds"),
+		BoolRow("Skate 3 multiplier sounds", "skategm_hud_sounds"),
 		NumberRow("Sound volume", "skategm_sound_volume", 0, 2, 0.1, Percent),
 		NumberRow("Boombox volume", "skategm_boombox_volume", 0, 1, 0.05, function(v) return v <= 0 and "muted" or Percent(v) end),
 		List.Heading("Controller"),
@@ -250,6 +252,8 @@ function SET.AdvancedPage()
 		NumberRow("Top speed", "skategm_speed_limit", 0, 60, 5, function(v) return v <= 0 and "no limit" or string.format("%d m/s", v) end),
 		BoolRow("Other players are solid", "skategm_player_collision"),
 		BoolRow("RB off the board uses doors and buttons", "skategm_rb_use"),
+		BoolRow("RB punches (on the ground and on foot)", "skategm_punch"),
+		NumberRow("Landing must hold before tricks score", "skategm_landing_settle", 0, 1, 0.05, function(v) return string.format("%.2f s", v) end),
 		BoolRow("Y does nothing in the air", "skategm_block_air_dismount"),
 		List.Heading("Collision (applies when it's reloaded)"),
 	}
@@ -313,13 +317,18 @@ function SET.DisplayPage()
 end
 
 function SET.MainPage()
-	return { title = "Settings", rows = {
+	local rows = {
 		{ label = "Playermodel", page = SET.PlayerPage, sub = "your model and colour" },
-		{ label = "Board", page = SET.BoardPage, sub = "colours, image, effects, sounds" },
+		{ label = "Board", page = SET.BoardPage, sub = "colours, image, model, effects, sounds" },
 		{ label = "Camera", page = SET.CameraPage, sub = "wobble, distance, field of view" },
 		{ label = "Display", page = SET.DisplayPage, sub = "what the HUD shows" },
 		{ label = "Advanced", page = SET.AdvancedPage, sub = "everything else" },
-	} }
+	}
+	-- (cl_character.lua: the Z-City appearance)
+	if SET.CharacterPage then table.insert(rows, 2, { label = "Character", page = SET.CharacterPage, sub = "Z-City model, clothes, face, accessories" }) end
+	-- (cl_style.lua: stance, style, posture, D-pad gestures)
+	if SET.StylePage then table.insert(rows, SET.CharacterPage and 3 or 2, { label = "Style", page = SET.StylePage, sub = "stance, skating style, posture, gestures" }) end
+	return { title = "Settings", rows = rows }
 end
 
 ---------------------------------------------------------------------------

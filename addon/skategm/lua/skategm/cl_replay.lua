@@ -5,7 +5,8 @@ local S = SkateGM
 -- RB opens the list (the last 15 s, then saved clips of this map); the
 -- editor plays it back as a ghost of you while your skater waits.
 --   A play / pause   D-pad left / right scrub   D-pad up / down FOV
---   X camera (chase, tripod, free)   RB shake   Y set keyframe
+--   X camera (chase, tripod, free)   R3 shake   Y set keyframe
+--   RB leave it looping as a ghost (cl_replay_loop)
 --   LB + left / right stick trim   LB + D-pad previous / next keyframe
 --   LB + Y delete the nearest keyframe   Start menu   B back
 -- Keyframes: a camera mode, its position and FOV at a time; the same mode
@@ -18,6 +19,7 @@ S.replay = R
 R.DIR = "skategm/replays/"
 R.MAX_LIST = 20
 R.SCRUB, R.SCRUB_PAUSED, R.FOV_STEP = 1, 0.1, 5
+R.BTN_RS = 0x0080 -- XInput's right stick click (R3)
 
 -- (the shared controller UI: skategm_ui/cl_pad.lua)
 if not (SKATEGM_UI and SKATEGM_UI.pad) then include("skategm_ui/cl_pad.lua") end
@@ -381,7 +383,7 @@ function R.Press(btn, buttons)
 		cam.fov = math.Clamp(cam.fov + (btn == PAD.UP and -R.FOV_STEP or R.FOV_STEP), R.FOV_MIN, R.FOV_MAX)
 	elseif btn == PAD.X then R.NextMode()
 	elseif btn == PAD.Y then R.SetKeyHere()
-	elseif btn == PAD.RB then R.CycleShake()
+	elseif btn == PAD.RB then if R.Detach then R.Detach() end
 	elseif btn == PAD.START then R.OpenMenu()
 	end
 end
@@ -398,6 +400,11 @@ function R.Think(pad, now, dt)
 			if v.t >= b then v.t = b v.playing = false end
 		end
 		v.lbHeld = pad ~= nil and bit.band(pad.buttons or 0, PAD.LB) ~= 0
+		-- R3 (the right stick clicked in; Left Ctrl on the keyboard): shake. (Not a
+		-- PAD.B button, so read here, on its press)
+		local rs = pad ~= nil and bit.band(pad.buttons or 0, R.BTN_RS) ~= 0
+		if rs and v.rsWas == false and not v.menu and not v.lbHeld then R.CycleShake() end
+		v.rsWas = rs
 		if not v.menu and pad then
 			if v.lbHeld then
 				R.TrimSteer(pad, dt)
@@ -547,7 +554,8 @@ function R.Hints()
 		rows[#rows + 1] = { keys = { "LT", "RT" }, text = "Zoom" }
 	end
 	rows[#rows + 1] = { keys = { "X" }, text = "Camera" }
-	rows[#rows + 1] = { keys = { "RB" }, text = "Shake" }
+	rows[#rows + 1] = { keys = { "RS" }, text = "Click: shake" }
+	rows[#rows + 1] = { keys = { "RB" }, text = "Leave it looping" }
 	rows[#rows + 1] = { keys = { "Y" }, text = "Set keyframe" }
 	rows[#rows + 1] = { keys = { "LB" }, text = "Trim, keyframes" }
 	rows[#rows + 1] = { keys = { "START" }, text = "Save/Export" }
@@ -626,3 +634,5 @@ concommand.Add("skategm_replay", function(_, _, args)
 	end
 	if R.on then R.Close() else R.Open(S.RecentClip(), "Last 15 seconds") end
 end, nil, "Replay your last 15 seconds (or a saved replay: skategm_replay <name>)")
+
+include("skategm/cl_replay_loop.lua") -- (leave a replay looping as a ghost; others see it)

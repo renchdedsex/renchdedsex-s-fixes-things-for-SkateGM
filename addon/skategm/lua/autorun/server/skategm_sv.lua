@@ -1,4 +1,4 @@
-for _, f in ipairs({ "sound", "hud", "marker", "water", "why", "trace", "board_model", "settings", "replay", "replay_cam", "replay_fx", "replay_export", "infmap", "keyboard", "presentation", "retarget", "retarget_math", "flickit_hud", "boundary" }) do AddCSLuaFile("skategm/cl_" .. f .. ".lua") end
+for _, f in ipairs({ "sound", "hud", "marker", "water", "why", "trace", "board_model", "settings", "replay", "replay_cam", "replay_fx", "replay_export", "infmap", "keyboard", "presentation", "retarget", "retarget_math", "flickit_hud", "boundary", "replay_loop", "hud_original" }) do AddCSLuaFile("skategm/cl_" .. f .. ".lua") end
 -- Server half of SkateGM. The skate simulation runs on the client
 -- (gm_skategm); the server only hides the real player, keeps it following the
 -- skater (so the world around them stays networked), and puts them back on
@@ -242,6 +242,7 @@ function SkateGM.ApplyPlayerModel(ply, now)
 	local col = ply:GetInfo("cl_playercolor")
 	if col and col ~= "" then ply:SetPlayerColor(Vector(col)) end
 	if ply.SetupHands then ply:SetupHands() end
+	hook.Run("SkateGMPlayerModel", ply) -- (the character appearance goes back on)
 	return true
 end
 
@@ -249,3 +250,4 @@ net.Receive("skategm_model", function(_, ply)
 	SkateGM.ApplyPlayerModel(ply, CurTime())
 end)
 include("skategm/sv_infmap.lua")
+include("skategm/sv_replay_network.lua") -- (replay ghosts shown to other players)
